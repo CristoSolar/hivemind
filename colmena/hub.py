@@ -70,6 +70,9 @@ class Hub:
         cwd = os.path.expanduser(cwd or self.roles[role]["cwd"])
         if not os.path.isdir(cwd):
             raise ValueError(f"La carpeta {cwd} no existe.")
+        # SQLite's NOCASE only folds ASCII, so check Unicode case here too.
+        if any(a["name"].casefold() == name.casefold() for a in self.store.agents()):
+            raise ValueError(f"Ya existe un agente llamado «{name}».")
         try:
             agent = self.store.create_agent(name, role, cwd)
         except sqlite3.IntegrityError:
@@ -200,6 +203,9 @@ class Hub:
             return await fut
         finally:
             self.pending.pop(ap["id"], None)
+            if fut.cancelled():  # the SDK/CLI dropped the request; clear the card
+                self.store.resolve_approval(ap["id"], "expired")
+                self.broadcast({"type": "approval_resolved", "id": ap["id"], "status": "expired"})
             if agent_id in self.running:
                 self._status(agent_id, "working")
 

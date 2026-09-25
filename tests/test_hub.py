@@ -149,6 +149,22 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         await self.hub.drain()
         self.assertIsNone(self.store.agent(a["id"]))
 
+    def test_unicode_names_unique_ignoring_case(self):
+        self.hub.create_agent("Óscar", "dev")
+        with self.assertRaises(ValueError):
+            self.hub.create_agent("óscar", "dev")
+
+    async def test_cancelled_approval_is_expired(self):
+        a = self.hub.create_agent("Dev", "dev")
+        task = asyncio.ensure_future(self.hub._ask(a["id"], "Bash", {"command": "ls"}, "Bash(ls)"))
+        while not self.store.approvals():
+            await asyncio.sleep(0)
+        ap = self.store.approvals()[0]
+        task.cancel()  # the SDK cancels can_use_tool when the CLI cancels or closes
+        await asyncio.gather(task, return_exceptions=True)
+        self.assertEqual(self.store.approvals(), [])
+        self.assertIn({"type": "approval_resolved", "id": ap["id"], "status": "expired"}, self.events)
+
     def test_expire_stale_approvals(self):
         self.store.add_approval("a1", "Bash", {}, "Bash")
         self.hub.expire_stale_approvals()

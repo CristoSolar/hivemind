@@ -24,6 +24,9 @@ class RouterTest(unittest.TestCase):
     def test_code_block_ignored(self):
         self.assertEqual(mentions("mira:\n```\n@Dev\n```\nlisto", NAMES), ([], []))
 
+    def test_unicode_case_insensitive(self):
+        self.assertEqual(mentions("@óscar hola", ["Óscar"]), (["Óscar"], []))
+
     def test_name_validation(self):
         self.assertTrue(NAME_RE.match("Señor-Ops"))
         self.assertFalse(NAME_RE.match("con espacio"))
