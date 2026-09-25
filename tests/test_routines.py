@@ -70,6 +70,22 @@ class RoutinesTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             self.hub.routines.update(r["id"], schedule={"every_hours": 0})
 
+    async def test_reenabling_waits_for_next_slot(self):
+        r = self.hub.routines.create("R", "group", "hola", {"daily": "09:00"}, now=ts(2026, 9, 21, 8, 0))
+        self.hub.routines.update(r["id"], enabled=False, now=ts(2026, 9, 21, 8, 30))
+        got = self.hub.routines.update(r["id"], enabled=True, now=ts(2026, 9, 25, 15, 0))
+        self.assertEqual(got["next_run"], ts(2026, 9, 26, 9, 0))
+        await self.hub.routines.tick(now=ts(2026, 9, 25, 15, 1))
+        await self.hub.drain()
+        self.assertEqual(FakeTurn.log, [])
+
+    async def test_reenabling_with_deleted_target_is_rejected(self):
+        r = self.hub.routines.create("R", self.agent["id"], "hola", {"every_hours": 1}, now=ts(2026, 9, 25, 8, 0))
+        await self.hub.delete_agent(self.agent["id"])
+        await self.hub.routines.tick(now=ts(2026, 9, 25, 10, 0))
+        with self.assertRaises(ValueError):
+            self.hub.routines.update(r["id"], enabled=True)
+
     def test_snapshot_includes_routines_and_tasks(self):
         self.hub.routines.create("R", "group", "hola", {"every_hours": 1})
         self.hub.board.create("Tarea")

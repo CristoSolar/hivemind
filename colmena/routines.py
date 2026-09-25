@@ -37,7 +37,8 @@ class Routines:
         return r
 
     def update(self, routine_id, now=None, **fields):
-        if self.store.routine(routine_id) is None:
+        current = self.store.routine(routine_id)
+        if current is None:
             raise ValueError("Esa rutina no existe.")
         changes = {}
         for key in ("name", "prompt"):
@@ -54,6 +55,11 @@ class Routines:
             changes["next_run"] = self._next(changes["schedule"], now or time.time())
         if "enabled" in fields:
             changes["enabled"] = bool(fields["enabled"])
+            if changes["enabled"] and not current["enabled"]:
+                # Waking up a paused routine: its old next_run is in the past, so do not fire it at once.
+                self._check_target(changes.get("target", current["target"]))
+                schedule = changes.get("schedule", current["schedule"])
+                changes["next_run"] = self._next(schedule, now or time.time())
         self.store.update_routine(routine_id, **changes)
         self._changed()
         return self.store.routine(routine_id)
