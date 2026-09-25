@@ -84,7 +84,7 @@ class RunnerTest(unittest.TestCase):
             result(),
         ]
         _, _, asked, client = self.run_turn(script, answer="deny")
-        self.assertEqual(asked, [("Bash", "Bash")])
+        self.assertEqual(asked, [("Bash", "Bash(rm x)")])
         self.assertIsInstance(client.decisions[0], PermissionResultAllow)
         self.assertIsInstance(client.decisions[1], PermissionResultDeny)
         self.assertEqual(client.decisions[1].message, DENY_MESSAGE)

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import tomllib
 from fnmatch import fnmatch
@@ -28,6 +29,7 @@ cwd = "~"
 ''',
 }
 
+_SHELL_META = re.compile(r"[;&|`$<>\n]")
 _MAIN_ARG = {"Bash": "command", "Read": "file_path", "Edit": "file_path",
              "Write": "file_path", "WebFetch": "url"}
 
@@ -54,22 +56,40 @@ def load_roles(dir):
     return roles
 
 
+def _arg(tool, input):
+    return str(input.get(_MAIN_ARG.get(tool, ""), json.dumps(input, sort_keys=True)))
+
+
+def _matches(tool, arg, pattern):
+    if arg == pattern:
+        return True
+    # A pattern must never cover a chained or substituted shell command.
+    if tool == "Bash" and _SHELL_META.search(arg):
+        return False
+    if pattern.endswith(":*"):  # Claude Code prefix rule: "npm test:*"
+        prefix = pattern[:-2]
+        return arg == prefix or arg.startswith(prefix + " ")
+    return "*" in pattern and fnmatch(arg, pattern)
+
+
 def permitted(tool, input, rules):
     for rule in rules:
         if rule.endswith(")") and "(" in rule:
             name, pattern = rule[:-1].split("(", 1)
-            arg = input.get(_MAIN_ARG.get(tool, ""), json.dumps(input, sort_keys=True))
-            if name == tool and fnmatch(str(arg), pattern):
+            if name == tool and _matches(tool, _arg(tool, input), pattern):
                 return True
         elif fnmatch(tool, rule):
             return True
     return False
 
 
-def suggested_rule(tool, suggestions):
+def suggested_rule(tool, input, suggestions):
     for s in suggestions:
         if s.type == "addRules":
             for r in s.rules or []:
-                if r.tool_name == tool:
-                    return f"{tool}({r.rule_content})" if r.rule_content else tool
+                if r.tool_name == tool and r.rule_content:
+                    return f"{tool}({r.rule_content})"
+    # No scoped suggestion: pin the rule to this exact argument, never the whole tool.
+    if tool in _MAIN_ARG and _MAIN_ARG[tool] in input:
+        return f"{tool}({input[_MAIN_ARG[tool]]})"
     return tool

@@ -120,6 +120,8 @@ class ChatView(Gtk.Box):
         detail = ap["input"].get("command") or ap["input"].get("file_path") or json.dumps(ap["input"], ensure_ascii=False)
         card.append(_label(f"<b>Quiere usar {GLib.markup_escape_text(ap['tool'])}</b>"))
         card.append(_label(GLib.markup_escape_text(detail[:600]), "colmena-code"))
+        card.append(_label("«Permitir siempre» guardará: <tt>" + GLib.markup_escape_text(ap["rule"] or ap["tool"]) + "</tt>",
+                           "colmena-system"))
         row = Gtk.Box(spacing=6)
         for text, decision, css in (("Permitir", "allow", "suggested-action"),
                                     ("Denegar", "deny", "destructive-action"),

@@ -24,7 +24,7 @@ bindd = SUPER SHIFT, A, Colmena, exec, colmena
 ## Configurar
 
 - Roles: `~/.config/colmena/roles/*.toml` (`label`, `system_prompt`, `allowed_tools`, `cwd`).
-  `allowed_tools` acepta `Read`, comodines como `mcp__claude_ai_Gmail__*`, o `Bash(git status*)`.
+  `allowed_tools` acepta `Read`, comodines como `mcp__claude_ai_Gmail__*`, o `Bash(git status:*)` (prefijo; nunca cubre comandos encadenados con `;`, `&&` o `|`).
 - `~/.config/colmena/config.toml`: `max_running = 3` fija el máximo de agentes trabajando a la vez
   (por defecto se calcula con la RAM libre); `model = "sonnet"` fija el modelo.
 
