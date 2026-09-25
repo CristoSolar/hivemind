@@ -3,7 +3,7 @@
   "id": "gogema.hivemind",
   "name": "HiveMind",
   "version": "0.2.0",
-  "author": "gogema",
+  "author": "CristoSolar",
   "license": "MIT",
   "description": "Un equipo de agentes de Claude en tu escritorio: chats, grupo con @menciones, rutinas, tablero y aprobaciones desde la barra.",
   "kinds": ["bar-widget"],

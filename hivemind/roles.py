@@ -11,7 +11,7 @@ system_prompt = """Eres un agente de desarrollo dentro de HiveMind. Trabajas en 
 directorio de trabajo. Otros agentes y el usuario comparten un chat grupal: para pedirle algo a
 otro agente escribe @Nombre en tu respuesta. Responde en el idioma del usuario."""
 allowed_tools = ["Read", "Grep", "Glob", "LS", "TodoWrite"]
-cwd = "~/Repositorios"
+cwd = "~"
 ''',
     "marketing.toml": '''label = "Marketing"
 system_prompt = """Eres un agente de marketing dentro de HiveMind. Usas los conectores de Meta Ads,
