@@ -20,6 +20,7 @@ Panel {
   property bool connected: false
   property bool installed: true
   property bool installing: false
+  property bool installFailed: false
   property string installLog: ""
   property var agents: []
   property var statuses: ({})
@@ -91,6 +92,7 @@ Panel {
   function install() {
     if (root.installing) return
     root.installing = true
+    root.installFailed = false
     root.installLog = ""
     installProcess.command = ["bash", root.pluginDir + "/install.sh"]
     installProcess.running = true
@@ -114,7 +116,7 @@ Panel {
     running: !root.connected
     repeat: true
     onTriggered: {
-      probe.running = true
+      if (!root.installing) probe.running = true
       sock.connected = false
       sock.connected = true
     }
@@ -134,6 +136,7 @@ Panel {
     stderr: SplitParser { onRead: data => root.installLog = (root.installLog + data + "\n").slice(-2000) }
     onExited: function(exitCode) {
       root.installing = false
+      root.installFailed = exitCode !== 0
       probe.running = true
     }
   }
@@ -216,7 +219,7 @@ Panel {
           Column {
             width: parent.width
             spacing: Style.spacing.md
-            visible: !root.connected && !root.installed
+            visible: root.installing || root.installFailed || (!root.connected && !root.installed)
 
             Text {
               width: parent.width
@@ -227,7 +230,7 @@ Panel {
               font.pixelSize: Style.font.body
             }
             Button {
-              text: root.installing ? "Instalando…" : "Instalar Colmena"
+              text: root.installing ? "Instalando…" : root.installFailed ? "Reintentar instalación" : "Instalar Colmena"
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true

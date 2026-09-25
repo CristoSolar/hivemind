@@ -43,6 +43,13 @@ class PluginTest(unittest.TestCase):
         for needle in ('"hello"', '"approve"', "colmena.sock", "Timer", "SplitParser", "install.sh"):
             self.assertIn(needle, qml)
 
+    def test_install_view_survives_until_install_finishes(self):
+        qml = (ROOT / "Panel.qml").read_text()
+        # The reconnect timer must not flip `installed` mid-install, and a failed install keeps its log.
+        self.assertIn("if (!root.installing) probe.running = true", qml)
+        self.assertIn("root.installFailed = exitCode !== 0", qml)
+        self.assertIn("visible: root.installing || root.installFailed || (!root.connected && !root.installed)", qml)
+
     def test_panel_bee_matches_icon(self):
         qml = (ROOT / "Panel.qml").read_text()
         start = qml.index("BEE_MASK_START") + len("BEE_MASK_START\n")
