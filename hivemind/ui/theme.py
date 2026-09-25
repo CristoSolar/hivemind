@@ -61,6 +61,17 @@ button.destructive-action {{ color: {c['red']}; border-color: {c['red']}; }}
 
 .hivemind-card {{ border: 2px solid {c['muted']}; border-radius: 0; padding: 8px; background: {c['dark_background']}; }}
 .hivemind-cards > row {{ border-bottom: 1px solid {c['muted']}; }}
+list.hivemind-cards {{ background: transparent; }}
+.hivemind-cards > row {{ background: {c['dark_background']}; }}
+
+switch {{ border-radius: 0; background-color: {c['lighter_background']}; }}
+switch:checked {{ background-color: {c['accent']}; }}
+switch > slider {{ border-radius: 0; background-color: {c['foreground']}; }}
+
+dialog.alert sheet, dialog.alert .dialog-contents {{ background-color: {c['dark_background']}; }}
+dialog.alert sheet {{ border: 2px solid {c['accent']}; border-radius: 0; box-shadow: none; }}
+dropdown > button {{ background: transparent; }}
+popover > contents {{ background-color: {c['dark_background']}; border: 2px solid {c['muted']}; border-radius: 0; }}
 .hivemind-bee-idle {{ color: {c['muted']}; }}
 .hivemind-bee-queued {{ color: {c['foreground']}; }}
 .hivemind-bee-working, .hivemind-bee-tool, .hivemind-bee-thinking {{ color: {c['accent']}; }}

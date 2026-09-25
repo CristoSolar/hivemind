@@ -1,14 +1,8 @@
-from datetime import datetime
-
 from gi.repository import Adw, Gtk
 
-from hivemind.schedule import DAYS, describe
+from hivemind.schedule import DAYS, describe, short_when
 
 KINDS = [("every_hours", "Cada N horas"), ("daily", "Todos los días"), ("weekly", "Días de la semana")]
-
-
-def _when(ts):
-    return datetime.fromtimestamp(ts).strftime("%a %d %H:%M") if ts else "—"
 
 
 class RoutinesView(Gtk.Box):
@@ -49,7 +43,7 @@ class RoutinesView(Gtk.Box):
         name.add_css_class("heading")
         texts.append(name)
         sub = Gtk.Label(xalign=0, wrap=True, label=f"{describe(r['schedule'])} · {self._target_name(r['target'])}"
-                        f" · próxima: {_when(r['next_run']) if r['enabled'] else 'pausada'}")
+                        f" · próxima: {short_when(r['next_run']) if r['enabled'] else 'pausada'}")
         sub.add_css_class("dim-label")
         texts.append(sub)
         box.append(texts)

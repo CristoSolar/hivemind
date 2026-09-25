@@ -62,3 +62,11 @@ def describe(s):
     if "daily" in s:
         return f"Todos los días {s['daily']}"
     return f"{_join([DAYS[d] for d in s['weekly']['days']])} {s['weekly']['time']}"
+
+
+def short_when(ts):
+    """Spanish short date for the UI, e.g. "sáb 26 08:30" (strftime would follow the C locale)."""
+    if not ts:
+        return "—"
+    d = datetime.fromtimestamp(ts)
+    return f"{DAYS[d.weekday()][:3].lower()} {d.day} {d:%H:%M}"

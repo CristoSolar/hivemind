@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime
 
-from hivemind.schedule import describe, next_run, validate
+from hivemind.schedule import describe, next_run, short_when, validate
 
 
 class ScheduleTest(unittest.TestCase):
@@ -42,6 +42,11 @@ class ScheduleTest(unittest.TestCase):
         self.assertEqual(describe({"daily": "09:00"}), "Todos los días 09:00")
         self.assertEqual(describe({"weekly": {"days": [0, 3], "time": "09:00"}}), "Lunes y Jueves 09:00")
         self.assertEqual(describe({"weekly": {"days": [0, 2, 4], "time": "07:30"}}), "Lunes, Miércoles y Viernes 07:30")
+
+    def test_short_when_is_spanish(self):
+        self.assertEqual(short_when(datetime(2026, 9, 26, 8, 30).timestamp()), "sáb 26 08:30")
+        self.assertEqual(short_when(datetime(2026, 9, 28, 10, 0).timestamp()), "lun 28 10:00")
+        self.assertEqual(short_when(None), "—")
 
 
 if __name__ == "__main__":

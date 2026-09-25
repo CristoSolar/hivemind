@@ -67,6 +67,7 @@ class MainWindow(Adw.ApplicationWindow):
         split = Adw.NavigationSplitView(
             sidebar=Adw.NavigationPage(title="HiveMind", child=side_tb),
             content=Adw.NavigationPage(title="Chat", child=content_tb))
+        split.set_min_sidebar_width(250)  # keep "HiveMind" and agent names readable next to wide views
         self.toast = Adw.ToastOverlay(child=split)
         self.set_content(self.toast)
 

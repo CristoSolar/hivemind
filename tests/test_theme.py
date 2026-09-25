@@ -40,6 +40,12 @@ class ThemeTest(unittest.TestCase):
             f.write_text("roto = = =")
             self.assertEqual(font_size(f), 14)
 
+    def test_lists_switches_and_dialogs_follow_the_theme(self):
+        out = css(COLORS)
+        self.assertRegex(out, r"switch:checked \{\{?[^}]*background(-color)?: #89b4fa")
+        self.assertRegex(out, r"list\.hivemind-cards \{[^}]*background: transparent")
+        self.assertRegex(out, r"dialog\.alert[^{]*\{[^}]*border: 2px solid #89b4fa")
+
 
 if __name__ == "__main__":
     unittest.main()
