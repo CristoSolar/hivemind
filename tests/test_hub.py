@@ -3,8 +3,8 @@ import os
 import tempfile
 import unittest
 
-from colmena.hub import Hub
-from colmena.store import Store
+from hivemind.hub import Hub
+from hivemind.store import Store
 
 GB = 1024 * 1024
 ROLES = {"dev": {"name": "dev", "label": "Dev", "system_prompt": "", "allowed_tools": [], "cwd": "/tmp"}}
@@ -240,7 +240,7 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
 
     def test_notify_without_notify_send(self):
         from unittest import mock
-        from colmena import hub
+        from hivemind import hub
         with mock.patch("subprocess.Popen", side_effect=FileNotFoundError):
             hub.notify("t", "b")  # must not raise
 

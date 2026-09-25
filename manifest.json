@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "gogema.colmena",
-  "name": "Colmena",
+  "id": "gogema.hivemind",
+  "name": "HiveMind",
   "version": "0.2.0",
   "author": "gogema",
   "license": "MIT",
@@ -11,7 +11,7 @@
     "barWidget": "Panel.qml"
   },
   "barWidget": {
-    "displayName": "Colmena",
+    "displayName": "HiveMind",
     "description": "Estado de tus agentes y aprobaciones pendientes.",
     "category": "Productivity",
     "allowMultiple": false,

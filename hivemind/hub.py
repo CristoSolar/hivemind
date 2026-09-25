@@ -6,16 +6,16 @@ import subprocess
 import sys
 from collections import deque
 
-from colmena import capacity, paths
-from colmena.board import Board
-from colmena.router import CONTEXT_MESSAGES, MAX_HOPS, NAME_RE, mentions
-from colmena.routines import Routines
-from colmena.runner import Turn
+from hivemind import capacity, paths
+from hivemind.board import Board
+from hivemind.router import CONTEXT_MESSAGES, MAX_HOPS, NAME_RE, mentions
+from hivemind.routines import Routines
+from hivemind.runner import Turn
 
 
 def notify(title, body):
     try:
-        subprocess.Popen(["notify-send", "-a", "Colmena", title, body])
+        subprocess.Popen(["notify-send", "-a", "HiveMind", title, body])
     except OSError:
         pass
 
@@ -190,7 +190,7 @@ class Hub:
         for m in self.store.history("group", limit=CONTEXT_MESSAGES):
             who = {"user": "Usuario", "system": "Sistema"}.get(m["author"]) or names.get(m["author"], "?")
             lines.append(f"[{who}]: {m['content']}")
-        return ("Mensajes recientes del chat grupal de Colmena. Te mencionaron en el último. "
+        return ("Mensajes recientes del chat grupal de HiveMind. Te mencionaron en el último. "
                 "Tu respuesta se publicará en el grupo.\n\n" + "\n".join(lines))
 
     # queue ------------------------------------------------------------------
@@ -240,7 +240,7 @@ class Hub:
         except asyncio.CancelledError:
             raise
         except Exception as e:  # SDK/CLI failures must not kill the daemon
-            print(f"colmena: turno de {agent['name']} falló: {e!r}", file=sys.stderr)
+            print(f"hivemind: turno de {agent['name']} falló: {e!r}", file=sys.stderr)
             status = "error"
             self._post(thread, "system", "system", f"Error: {e}")
         finally:

@@ -1,6 +1,6 @@
 import unittest
 
-from colmena.ui.bee_frames import SEQUENCES, TICK_MS, frame_for
+from hivemind.ui.bee_frames import SEQUENCES, TICK_MS, frame_for
 
 
 class BeeFramesTest(unittest.TestCase):

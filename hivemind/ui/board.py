@@ -24,7 +24,7 @@ class BoardView(Gtk.Box):
         for status, label in COLUMNS:
             col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
             head = Gtk.Label(label=label.upper(), xalign=0)
-            head.add_css_class("colmena-author")
+            head.add_css_class("hivemind-author")
             col.append(head)
             cards = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
             col.append(Gtk.ScrolledWindow(vexpand=True, child=cards, hscrollbar_policy=Gtk.PolicyType.NEVER))
@@ -48,7 +48,7 @@ class BoardView(Gtk.Box):
 
     def _card(self, t):
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        card.add_css_class("colmena-card")
+        card.add_css_class("hivemind-card")
         title = Gtk.Button(child=Gtk.Label(label=t["title"], xalign=0, wrap=True,
                                            wrap_mode=Pango.WrapMode.WORD_CHAR))
         title.add_css_class("flat")
@@ -57,7 +57,7 @@ class BoardView(Gtk.Box):
         row = Gtk.Box(spacing=6)
         who = Gtk.Box(spacing=4, hexpand=True)
         if t["assignee_name"]:
-            who.append(Gtk.Image(icon_name="colmena-bee-up-symbolic", pixel_size=16))
+            who.append(Gtk.Image(icon_name="hivemind-bee-up-symbolic", pixel_size=16))
         who.append(Gtk.Label(label=t["assignee_name"] or "sin asignar", xalign=0))
         row.append(who)
         for text, delta in (("◀", -1), ("▶", 1)):

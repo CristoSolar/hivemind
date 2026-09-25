@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
 
-from colmena.schedule import next_run, validate
+from hivemind.schedule import next_run, validate
 
 
 class Routines:

@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime
 
-from colmena.schedule import describe, next_run, validate
+from hivemind.schedule import describe, next_run, validate
 
 
 class ScheduleTest(unittest.TestCase):

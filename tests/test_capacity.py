@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from colmena import capacity
+from hivemind import capacity
 
 GB = 1024 * 1024  # kB
 

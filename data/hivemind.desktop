@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Colmena
+Name=HiveMind
 Comment=Agentes de Claude en equipo
-Exec=colmena
-Icon=com.gogema.Colmena
-StartupWMClass=com.gogema.Colmena
+Exec=hivemind
+Icon=com.gogema.HiveMind
+StartupWMClass=com.gogema.HiveMind
 Categories=Development;Utility;

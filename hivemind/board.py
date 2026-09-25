@@ -129,7 +129,7 @@ class Board:
         schema = lambda props, required=(): {"type": "object", "properties": props, "required": list(required)}
         s = {"type": "string"}
         return [
-            tool("tablero_listar", "Lista las tareas del tablero compartido de Colmena. Filtra por estado opcional: "
+            tool("tablero_listar", "Lista las tareas del tablero compartido de HiveMind. Filtra por estado opcional: "
                  "Por hacer, En curso o Listo.", schema({"estado": s}))(guarded(listar)),
             tool("tablero_crear", "Crea una tarea en el tablero compartido. Asigna a un agente por su nombre si quieres.",
                  schema({"titulo": s, "descripcion": s, "asignado": s}, ["titulo"]))(guarded(crear)),

@@ -1,6 +1,6 @@
 import unittest
 
-from colmena.ui.markdown import segments
+from hivemind.ui.markdown import segments
 
 
 class MarkdownTest(unittest.TestCase):

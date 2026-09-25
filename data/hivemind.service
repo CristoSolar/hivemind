@@ -1,8 +1,8 @@
 [Unit]
-Description=Colmena agent daemon
+Description=HiveMind agent daemon
 
 [Service]
-ExecStart=%h/.local/share/colmena/venv/bin/colmena-daemon
+ExecStart=%h/.local/share/hivemind/venv/bin/hivemind-daemon
 Restart=on-failure
 Environment=PATH=%h/.local/bin:%h/.local/share/mise/shims:/usr/local/bin:/usr/bin
 

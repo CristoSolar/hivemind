@@ -6,17 +6,17 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// Colmena bar widget. Talks to colmena-daemon over its Unix socket with the
+// HiveMind bar widget. Talks to hivemind-daemon over its Unix socket with the
 // same newline-delimited JSON protocol the GTK window uses: `hello` for a
 // snapshot, then live events. Approvals are answered with `approve`.
 Panel {
   id: root
-  moduleName: "gogema.colmena"
-  ipcTarget: "gogema.colmena"
+  moduleName: "gogema.hivemind"
+  ipcTarget: "gogema.hivemind"
 
-  readonly property string socketPath: Quickshell.env("XDG_RUNTIME_DIR") + "/colmena.sock"
+  readonly property string socketPath: Quickshell.env("XDG_RUNTIME_DIR") + "/hivemind.sock"
   readonly property string pluginDir: Qt.resolvedUrl(".").toString().replace("file://", "")
-  readonly property string venvDaemon: Quickshell.env("HOME") + "/.local/share/colmena/venv/bin/colmena-daemon"
+  readonly property string venvDaemon: Quickshell.env("HOME") + "/.local/share/hivemind/venv/bin/hivemind-daemon"
 
   property bool connected: false
   property bool installed: true
@@ -36,7 +36,7 @@ Panel {
     : root.beeStatus === "working" ? Color.accent : root.dim
 
 
-  // Same sequences as colmena/ui/bee_frames.py: idle floats with a double flap now and then,
+  // Same sequences as hivemind/ui/bee_frames.py: idle floats with a double flap now and then,
   // working flaps, waiting blinks.
   property int tick: 0
   readonly property string beeStatus: !root.connected ? "offline"
@@ -52,7 +52,7 @@ Panel {
     const seq = seqs[root.beeStatus] || [["up", 1.0]]
     return seq[root.tick % seq.length]
   }
-  readonly property string iconsDir: root.pluginDir + "/colmena/ui/icons/"
+  readonly property string iconsDir: root.pluginDir + "/hivemind/ui/icons/"
 
   // Yellow is not one of the shell's colour roles, so read it from the theme ourselves and
   // re-read whenever the accent changes (that is what a theme switch does).
@@ -165,7 +165,7 @@ Panel {
     }
   }
 
-  Process { id: openProcess; command: ["colmena"] }
+  Process { id: openProcess; command: ["hivemind"] }
 
   Component.onCompleted: probe.running = true
 
@@ -184,7 +184,7 @@ Panel {
           fillMode: Image.PreserveAspectFit
           sourceSize.width: Math.round(width * Screen.devicePixelRatio)
           sourceSize.height: Math.round(height * Screen.devicePixelRatio)
-          source: "file://" + root.iconsDir + "colmena-bee-" + root.frame[0] + "-symbolic.svg"
+          source: "file://" + root.iconsDir + "hivemind-bee-" + root.frame[0] + "-symbolic.svg"
           visible: false
           layer.enabled: true
         }
@@ -262,13 +262,13 @@ Panel {
             Text {
               width: parent.width
               wrapMode: Text.Wrap
-              text: "Colmena aún no está instalada. Se instala en tu usuario: una app, un servicio y sin permisos de root."
+              text: "HiveMind aún no está instalada. Se instala en tu usuario: una app, un servicio y sin permisos de root."
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
             }
             Button {
-              text: root.installing ? "Instalando…" : root.installFailed ? "Reintentar instalación" : "Instalar Colmena"
+              text: root.installing ? "Instalando…" : root.installFailed ? "Reintentar instalación" : "Instalar HiveMind"
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true
@@ -290,7 +290,7 @@ Panel {
             width: parent.width
             visible: !root.connected && root.installed
             wrapMode: Text.Wrap
-            text: "El daemon de Colmena no responde. Reintentando…"
+            text: "El daemon de HiveMind no responde. Reintentando…"
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -370,7 +370,7 @@ Panel {
 
           Button {
             visible: root.connected || root.installed
-            text: "Abrir Colmena"
+            text: "Abrir HiveMind"
             foreground: root.foreground
             fontFamily: root.fontFamily
             bordered: true

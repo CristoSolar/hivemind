@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-from colmena.roles import load_roles, permitted, suggested_rule
+from hivemind.roles import load_roles, permitted, suggested_rule
 
 
 class RolesTest(unittest.TestCase):

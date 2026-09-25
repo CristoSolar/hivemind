@@ -1,9 +1,9 @@
-"""Colmena icons in the style of Kiro's ghost: one smooth monochrome silhouette,
+"""HiveMind icons in the style of Kiro's ghost: one smooth monochrome silhouette,
 with eyes and stripes cut out as holes.
 
 Every shape is a filled path (no strokes), so GTK can recolour the *-symbolic icons
 from the theme, and Panel.qml tints the same files with MultiEffect. Run
-`python tools/icons.py` to regenerate colmena/ui/icons/.
+`python tools/icons.py` to regenerate hivemind/ui/icons/.
 """
 import math
 from pathlib import Path
@@ -81,11 +81,11 @@ def svg(inner, color=SYMBOLIC):
 
 
 if __name__ == "__main__":
-    out = Path(__file__).resolve().parent.parent / "colmena" / "ui" / "icons"
+    out = Path(__file__).resolve().parent.parent / "hivemind" / "ui" / "icons"
     for old in out.glob("*.svg"):
         old.unlink()
     for name in FRAMES:
-        (out / f"colmena-bee-{name}-symbolic.svg").write_text(svg(bee(name)))
-    (out / "colmena-hex-symbolic.svg").write_text(svg(hive()))
-    (out / "colmena.svg").write_text(svg(hive(), APP_COLOR))
+        (out / f"hivemind-bee-{name}-symbolic.svg").write_text(svg(bee(name)))
+    (out / "hivemind-hex-symbolic.svg").write_text(svg(hive()))
+    (out / "hivemind.svg").write_text(svg(hive(), APP_COLOR))
     print("wrote", sorted(p.name for p in out.glob("*.svg")))

@@ -4,9 +4,9 @@ import os
 import tempfile
 import unittest
 
-from colmena.hub import Hub
-from colmena.server import serve
-from colmena.store import Store
+from hivemind.hub import Hub
+from hivemind.server import serve
+from hivemind.store import Store
 from tests.test_hub import GB, ROLES, FakeTurn
 
 

@@ -1,6 +1,6 @@
 import unittest
 
-from colmena.router import NAME_RE, mentions
+from hivemind.router import NAME_RE, mentions
 
 NAMES = ["Dev", "Marketing", "Señor-Ops"]
 

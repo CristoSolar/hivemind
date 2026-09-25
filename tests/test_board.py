@@ -1,8 +1,8 @@
 import asyncio
 import unittest
 
-from colmena.board import Board
-from colmena.store import Store
+from hivemind.board import Board
+from hivemind.store import Store
 
 
 class FakeHub:

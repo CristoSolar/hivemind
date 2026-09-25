@@ -22,7 +22,7 @@ def css(colors, size=14):
     return f"""
 /* Omarchy look: JetBrains Mono, square corners, 2px accent borders, flat. */
 * {{ font-family: "JetBrainsMono Nerd Font", monospace; border-radius: 0; }}
-window, .colmena-root {{ background-color: {c['background']}; color: {c['foreground']};
+window, .hivemind-root {{ background-color: {c['background']}; color: {c['foreground']};
   font-size: {size}px; }}
 
 headerbar {{ background: {c['background']}; box-shadow: inset 0 -1px {c['muted']}; min-height: 38px; }}
@@ -34,16 +34,16 @@ headerbar .title {{ font-weight: bold; }}
 .navigation-sidebar > row:selected {{ background: {c['lighter_background']};
   box-shadow: inset 2px 0 {c['accent']}; }}
 
-.colmena-bubble-user {{ background: transparent; color: {c['foreground']};
+.hivemind-bubble-user {{ background: transparent; color: {c['foreground']};
   border: 2px solid {c['accent']}; border-radius: 0; padding: 6px 10px; }}
-.colmena-bubble-agent {{ background: transparent; color: {c['foreground']};
+.hivemind-bubble-agent {{ background: transparent; color: {c['foreground']};
   border: 2px solid {c['muted']}; border-radius: 0; padding: 6px 10px; }}
-.colmena-author {{ color: {c['accent']}; font-weight: bold; font-size: smaller; }}
-.colmena-system {{ color: {c['muted']}; font-style: italic; }}
-.colmena-code {{ background-color: {c['darker_background']}; color: {c['foreground']};
+.hivemind-author {{ color: {c['accent']}; font-weight: bold; font-size: smaller; }}
+.hivemind-system {{ color: {c['muted']}; font-style: italic; }}
+.hivemind-code {{ background-color: {c['darker_background']}; color: {c['foreground']};
   border: none; border-radius: 0; padding: 6px 8px; }}
-.colmena-tool {{ color: {c['muted']}; }}
-.colmena-approval {{ border: 2px solid {c['yellow']}; border-radius: 0; padding: 10px;
+.hivemind-tool {{ color: {c['muted']}; }}
+.hivemind-approval {{ border: 2px solid {c['yellow']}; border-radius: 0; padding: 10px;
   background: {c['dark_background']}; }}
 
 entry {{ background: {c['dark_background']}; border: 2px solid {c['muted']}; border-radius: 0;
@@ -58,19 +58,19 @@ button.suggested-action {{ background: {c['accent']}; color: {c['background']}; 
   font-weight: bold; }}
 button.destructive-action {{ color: {c['red']}; border-color: {c['red']}; }}
 
-.colmena-card {{ border: 2px solid {c['muted']}; border-radius: 0; padding: 8px; background: {c['dark_background']}; }}
-.colmena-cards > row {{ border-bottom: 1px solid {c['muted']}; }}
-.colmena-bee-idle {{ color: {c['muted']}; }}
-.colmena-bee-queued {{ color: {c['foreground']}; }}
-.colmena-bee-working {{ color: {c['accent']}; }}
-.colmena-bee-waiting {{ color: {c['yellow']}; }}
-.colmena-bee-error {{ color: {c['red']}; }}
-.colmena-dot {{ font-size: 10px; text-shadow: 0 0 2px {c['background']}; }}
-.colmena-dot-idle {{ color: {c['muted']}; }}
-.colmena-dot-queued {{ color: {c['foreground']}; }}
-.colmena-dot-working {{ color: {c['green']}; }}
-.colmena-dot-waiting {{ color: {c['yellow']}; }}
-.colmena-dot-error {{ color: {c['red']}; }}
+.hivemind-card {{ border: 2px solid {c['muted']}; border-radius: 0; padding: 8px; background: {c['dark_background']}; }}
+.hivemind-cards > row {{ border-bottom: 1px solid {c['muted']}; }}
+.hivemind-bee-idle {{ color: {c['muted']}; }}
+.hivemind-bee-queued {{ color: {c['foreground']}; }}
+.hivemind-bee-working {{ color: {c['accent']}; }}
+.hivemind-bee-waiting {{ color: {c['yellow']}; }}
+.hivemind-bee-error {{ color: {c['red']}; }}
+.hivemind-dot {{ font-size: 10px; text-shadow: 0 0 2px {c['background']}; }}
+.hivemind-dot-idle {{ color: {c['muted']}; }}
+.hivemind-dot-queued {{ color: {c['foreground']}; }}
+.hivemind-dot-working {{ color: {c['green']}; }}
+.hivemind-dot-waiting {{ color: {c['yellow']}; }}
+.hivemind-dot-error {{ color: {c['red']}; }}
 """
 
 
@@ -84,8 +84,8 @@ def _read():
 def install(display):
     from gi.repository import Adw, Gio, Gtk
 
-    from colmena.ui.window_icons import ICONS
-    Gtk.IconTheme.get_for_display(display).add_search_path(str(ICONS))  # colmena-*-symbolic icons
+    from hivemind.ui.window_icons import ICONS
+    Gtk.IconTheme.get_for_display(display).add_search_path(str(ICONS))  # hivemind-*-symbolic icons
     provider = Gtk.CssProvider()
     Gtk.StyleContext.add_provider_for_display(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 

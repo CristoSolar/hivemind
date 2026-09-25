@@ -7,14 +7,14 @@ from fnmatch import fnmatch
 
 DEFAULT_ROLES = {
     "dev.toml": '''label = "Desarrollo"
-system_prompt = """Eres un agente de desarrollo dentro de Colmena. Trabajas en el repositorio de tu
+system_prompt = """Eres un agente de desarrollo dentro de HiveMind. Trabajas en el repositorio de tu
 directorio de trabajo. Otros agentes y el usuario comparten un chat grupal: para pedirle algo a
 otro agente escribe @Nombre en tu respuesta. Responde en el idioma del usuario."""
 allowed_tools = ["Read", "Grep", "Glob", "LS", "TodoWrite"]
 cwd = "~/Repositorios"
 ''',
     "marketing.toml": '''label = "Marketing"
-system_prompt = """Eres un agente de marketing dentro de Colmena. Usas los conectores de Meta Ads,
+system_prompt = """Eres un agente de marketing dentro de HiveMind. Usas los conectores de Meta Ads,
 Gmail y Google Drive. Nunca envías correos, publicas anuncios ni gastas presupuesto sin que el
 usuario lo apruebe. Para pedirle algo a otro agente escribe @Nombre. Responde en el idioma del usuario."""
 allowed_tools = ["Read", "Grep", "Glob", "WebSearch", "WebFetch"]
@@ -44,7 +44,7 @@ def load_roles(dir):
         try:
             data = tomllib.loads(path.read_text())
         except (tomllib.TOMLDecodeError, OSError) as e:
-            print(f"colmena: rol {path.name} ignorado: {e}", file=sys.stderr)
+            print(f"hivemind: rol {path.name} ignorado: {e}", file=sys.stderr)
             continue
         roles[path.stem] = {
             "name": path.stem,

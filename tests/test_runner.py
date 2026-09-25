@@ -6,7 +6,7 @@ from claude_agent_sdk import (AssistantMessage, PermissionResultAllow, Permissio
                               ResultMessage, StreamEvent, TextBlock, ToolResultBlock,
                               ToolUseBlock, UserMessage)
 
-from colmena.runner import DENY_MESSAGE, Turn
+from hivemind.runner import DENY_MESSAGE, Turn
 
 
 class FakeClient:

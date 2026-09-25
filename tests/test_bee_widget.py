@@ -9,8 +9,8 @@ class AnimatedBeeWidgetTest(unittest.TestCase):
         import gi
         gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
         from gi.repository import Adw, Gdk, GLib, Gtk
-        from colmena.ui import theme
-        from colmena.ui.bee import AnimatedBee
+        from hivemind.ui import theme
+        from hivemind.ui.bee import AnimatedBee
         seen = set()
 
         class App(Adw.Application):
@@ -36,8 +36,8 @@ class AnimatedBeeWidgetTest(unittest.TestCase):
         import gi
         gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
         from gi.repository import Adw, Gdk, GLib, Gtk
-        from colmena.ui import bee as bee_module
-        from colmena.ui import theme
+        from hivemind.ui import bee as bee_module
+        from hivemind.ui import theme
         counts = []
 
         class App(Adw.Application):

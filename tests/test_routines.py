@@ -1,8 +1,8 @@
 import unittest
 from datetime import datetime
 
-from colmena.hub import Hub
-from colmena.store import Store
+from hivemind.hub import Hub
+from hivemind.store import Store
 from tests.test_hub import GB, ROLES, FakeTurn
 
 

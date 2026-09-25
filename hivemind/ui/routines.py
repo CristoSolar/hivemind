@@ -2,7 +2,7 @@ from datetime import datetime
 
 from gi.repository import Adw, Gtk
 
-from colmena.schedule import DAYS, describe
+from hivemind.schedule import DAYS, describe
 
 KINDS = [("every_hours", "Cada N horas"), ("daily", "Todos los días"), ("weekly", "Días de la semana")]
 
@@ -25,7 +25,7 @@ class RoutinesView(Gtk.Box):
         bar.append(add)
         self.append(bar)
         self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, margin_start=16, margin_end=16)
-        self.list.add_css_class("colmena-cards")
+        self.list.add_css_class("hivemind-cards")
         self.append(Gtk.ScrolledWindow(vexpand=True, child=self.list, hscrollbar_policy=Gtk.PolicyType.NEVER))
         self.routines = []
 

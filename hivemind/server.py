@@ -101,7 +101,7 @@ async def serve(hub, path):
         except (ConnectionError, asyncio.IncompleteReadError):
             pass
         except Exception as e:
-            print(f"colmena: cliente desconectado por error: {e!r}", file=sys.stderr)
+            print(f"hivemind: cliente desconectado por error: {e!r}", file=sys.stderr)
         finally:
             hub.unsubscribe(on_event)
             writer.close()

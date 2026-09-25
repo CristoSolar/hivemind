@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 class PluginTest(unittest.TestCase):
     def test_manifest(self):
         m = json.loads((ROOT / "manifest.json").read_text())
-        self.assertEqual((m["schemaVersion"], m["id"], m["kinds"]), (1, "gogema.colmena", ["bar-widget"]))
+        self.assertEqual((m["schemaVersion"], m["id"], m["kinds"]), (1, "gogema.hivemind", ["bar-widget"]))
         self.assertTrue((ROOT / m["entryPoints"]["barWidget"]).is_file())
         self.assertEqual(m["barWidget"]["defaultSection"], "right")
 
@@ -40,7 +40,7 @@ class PluginTest(unittest.TestCase):
 
     def test_panel_uses_protocol_and_reconnects(self):
         qml = (ROOT / "Panel.qml").read_text()
-        for needle in ('"hello"', '"approve"', "colmena.sock", "Timer", "SplitParser", "install.sh"):
+        for needle in ('"hello"', '"approve"', "hivemind.sock", "Timer", "SplitParser", "install.sh"):
             self.assertIn(needle, qml)
 
     def test_install_view_survives_until_install_finishes(self):
@@ -52,14 +52,14 @@ class PluginTest(unittest.TestCase):
 
     def test_panel_uses_the_window_icons(self):
         qml = (ROOT / "Panel.qml").read_text()
-        self.assertIn('"colmena-bee-" + root.frame[0] + "-symbolic.svg"', qml)
+        self.assertIn('"hivemind-bee-" + root.frame[0] + "-symbolic.svg"', qml)
         for name in icons.FRAMES:
-            self.assertTrue((ROOT / "colmena/ui/icons" / f"colmena-bee-{name}-symbolic.svg").is_file())
+            self.assertTrue((ROOT / "hivemind/ui/icons" / f"hivemind-bee-{name}-symbolic.svg").is_file())
         self.assertIn("MultiEffect", qml)
         self.assertIn("colorizationColor: root.glyphColor", qml)
 
     def test_panel_animation_matches_window(self):
-        from colmena.ui.bee_frames import TICK_MS
+        from hivemind.ui.bee_frames import TICK_MS
         qml = (ROOT / "Panel.qml").read_text()
         self.assertIn(f"interval: {TICK_MS}", qml)
         for status in ("idle", "working", "waiting"):

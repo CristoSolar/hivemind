@@ -6,13 +6,13 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk  # noqa: E402
 
-from colmena.ui import theme  # noqa: E402
-from colmena.ui.window import MainWindow  # noqa: E402
+from hivemind.ui import theme  # noqa: E402
+from hivemind.ui.window import MainWindow  # noqa: E402
 
 
 class App(Adw.Application):
     def __init__(self):
-        super().__init__(application_id="com.gogema.Colmena")
+        super().__init__(application_id="com.gogema.HiveMind")
 
     def do_activate(self):
         win = self.get_active_window()

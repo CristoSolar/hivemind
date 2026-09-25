@@ -9,15 +9,15 @@ def _xdg(var, fallback):
 
 
 def data_dir():
-    return _xdg("XDG_DATA_HOME", ".local/share") / "colmena"
+    return _xdg("XDG_DATA_HOME", ".local/share") / "hivemind"
 
 
 def config_dir():
-    return _xdg("XDG_CONFIG_HOME", ".config") / "colmena"
+    return _xdg("XDG_CONFIG_HOME", ".config") / "hivemind"
 
 
 def socket_path():
-    return Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "colmena.sock"
+    return Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "hivemind.sock"
 
 
 def save_config(cfg):

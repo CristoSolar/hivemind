@@ -2,12 +2,12 @@ import os
 
 from gi.repository import Adw, Gtk, Pango
 
-from colmena.ui.board import BoardView
-from colmena.ui.chat import ChatView
-from colmena.ui.client import Client
-from colmena.ui.dialogs import agent_dialog, model_label, preferences_dialog
-from colmena.ui.routines import RoutinesView
-from colmena.ui.bee import AnimatedBee
+from hivemind.ui.board import BoardView
+from hivemind.ui.chat import ChatView
+from hivemind.ui.client import Client
+from hivemind.ui.dialogs import agent_dialog, model_label, preferences_dialog
+from hivemind.ui.routines import RoutinesView
+from hivemind.ui.bee import AnimatedBee
 
 
 _STATUS = {"idle": "Inactivo", "queued": "En cola", "working": "Trabajando",
@@ -16,7 +16,7 @@ _STATUS = {"idle": "Inactivo", "queued": "En cola", "working": "Trabajando",
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app):
-        super().__init__(application=app, title="Colmena", default_width=1100, default_height=720)
+        super().__init__(application=app, title="HiveMind", default_width=1100, default_height=720)
         self.agents, self.roles, self.statuses, self.approvals = [], {}, {}, []
         self.routines, self.tasks = [], []
         self.views, self.unread = {}, {}
@@ -52,14 +52,14 @@ class MainWindow(Adw.ApplicationWindow):
         self.settings_btn.connect("clicked", self._edit_agent)
         self.content_hb.pack_end(self.settings_btn)
         self.banner = Adw.Banner(title="Daemon detenido", button_label="Iniciar")
-        self.banner.connect("button-clicked", lambda *_: os.system("systemctl --user start colmena &"))
+        self.banner.connect("button-clicked", lambda *_: os.system("systemctl --user start hivemind &"))
         content_tb = Adw.ToolbarView()
         content_tb.add_top_bar(self.content_hb)
         content_tb.add_top_bar(self.banner)
         content_tb.set_content(self.stack)
 
         split = Adw.NavigationSplitView(
-            sidebar=Adw.NavigationPage(title="Colmena", child=side_tb),
+            sidebar=Adw.NavigationPage(title="HiveMind", child=side_tb),
             content=Adw.NavigationPage(title="Chat", child=content_tb))
         self.toast = Adw.ToastOverlay(child=split)
         self.set_content(self.toast)
@@ -112,7 +112,7 @@ class MainWindow(Adw.ApplicationWindow):
             avatar = Gtk.Image(icon_name="alarm-symbolic" if thread == "routines" else "view-grid-symbolic",
                                pixel_size=24, width_request=32)
         elif thread == "group":
-            avatar = Gtk.Image(icon_name="colmena-hex-symbolic", pixel_size=32)
+            avatar = Gtk.Image(icon_name="hivemind-hex-symbolic", pixel_size=32)
         else:
             avatar = AnimatedBee(self.statuses.get(thread, "idle"), seed=thread)
         box.append(avatar)

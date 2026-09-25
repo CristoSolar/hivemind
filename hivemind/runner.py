@@ -2,7 +2,7 @@ from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions, ClaudeSDKCli
                               PermissionResultAllow, PermissionResultDeny, ResultMessage,
                               StreamEvent, TextBlock, ToolResultBlock, ToolUseBlock, UserMessage)
 
-from colmena.roles import permitted, suggested_rule
+from hivemind.roles import permitted, suggested_rule
 
 DENY_MESSAGE = "El usuario denegó esta acción"
 BOARD_RULE = "mcp__tablero__*"
@@ -37,7 +37,7 @@ class Turn:
         return PermissionResultAllow()
 
     def _prompt(self):
-        return (f"{self.role['system_prompt']}\n\nTe llamas {self.agent['name']} en Colmena. Hay un tablero "
+        return (f"{self.role['system_prompt']}\n\nTe llamas {self.agent['name']} en HiveMind. Hay un tablero "
                 "compartido de tareas (herramientas tablero_listar, tablero_crear, tablero_mover y "
                 "tablero_asignar): úsalo para coordinar trabajo de varios pasos con los demás agentes.")
 

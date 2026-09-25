@@ -1,7 +1,7 @@
 import sqlite3
 import unittest
 
-from colmena.store import Store
+from hivemind.store import Store
 
 
 class StoreTest(unittest.TestCase):

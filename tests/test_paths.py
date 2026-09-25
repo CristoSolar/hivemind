@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from colmena import paths
+from hivemind import paths
 
 
 class PathsTest(unittest.TestCase):

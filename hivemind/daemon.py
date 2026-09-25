@@ -1,20 +1,20 @@
 import asyncio
 import sys
 
-from colmena import paths
-from colmena.hub import Hub
-from colmena.roles import load_roles
-from colmena.server import serve
-from colmena.store import Store
+from hivemind import paths
+from hivemind.hub import Hub
+from hivemind.roles import load_roles
+from hivemind.server import serve
+from hivemind.store import Store
 
 
 async def _main():
     paths.data_dir().mkdir(parents=True, exist_ok=True)
-    store = Store(str(paths.data_dir() / "colmena.db"))
+    store = Store(str(paths.data_dir() / "hivemind.db"))
     hub = Hub(store, load_roles(paths.config_dir() / "roles"), config=paths.load_config())
     hub.expire_stale_approvals()
     server = await serve(hub, str(paths.socket_path()))
-    print(f"colmena-daemon escuchando en {paths.socket_path()}", flush=True)
+    print(f"hivemind-daemon escuchando en {paths.socket_path()}", flush=True)
     async with server:
         beat = 0
         while True:
@@ -25,7 +25,7 @@ async def _main():
                 try:
                     await hub.routines.tick()
                 except Exception as e:  # one bad routine must not stop the daemon
-                    print(f"colmena: rutinas fallaron: {e!r}", file=sys.stderr, flush=True)
+                    print(f"hivemind: rutinas fallaron: {e!r}", file=sys.stderr, flush=True)
 
 
 def main():

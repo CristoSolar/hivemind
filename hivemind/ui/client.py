@@ -3,7 +3,7 @@ import traceback
 
 from gi.repository import Gio, GLib
 
-from colmena import paths
+from hivemind import paths
 
 
 class Client:

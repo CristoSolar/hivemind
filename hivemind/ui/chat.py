@@ -3,7 +3,7 @@ from pathlib import Path
 
 from gi.repository import GLib, Gtk, Pango
 
-from colmena.ui.markdown import segments
+from hivemind.ui.markdown import segments
 
 
 
@@ -23,7 +23,7 @@ def _bubble(text, css):
             box.append(_label(seg[1]))
         else:
             code = Gtk.Label(label=seg[2], xalign=0, selectable=True, wrap=True, wrap_mode=Pango.WrapMode.CHAR)
-            code.add_css_class("colmena-code")
+            code.add_css_class("hivemind-code")
             box.append(code)
     return box
 
@@ -86,21 +86,21 @@ class ChatView(Gtk.Box):
             self.list.remove(self.live)
         self.live = None
         if m["kind"] == "system":
-            self.list.append(_label(GLib.markup_escape_text(m["content"]), "colmena-system"))
+            self.list.append(_label(GLib.markup_escape_text(m["content"]), "hivemind-system"))
         elif m["author"] == "user":
-            b = _bubble(m["content"], "colmena-bubble-user")
+            b = _bubble(m["content"], "hivemind-bubble-user")
             b.set_halign(Gtk.Align.END)
             self.list.append(b)
         else:
             col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, halign=Gtk.Align.START)
             if self.thread == "group":
                 who = Gtk.Box(spacing=6)
-                bee = Gtk.Image(icon_name="colmena-bee-up-symbolic", pixel_size=18)
-                bee.add_css_class("colmena-bee-queued")
+                bee = Gtk.Image(icon_name="hivemind-bee-up-symbolic", pixel_size=18)
+                bee.add_css_class("hivemind-bee-queued")
                 who.append(bee)
-                who.append(_label(GLib.markup_escape_text(self.names.get(m["author"], "?")), "colmena-author"))
+                who.append(_label(GLib.markup_escape_text(self.names.get(m["author"], "?")), "hivemind-author"))
                 col.append(who)
-            col.append(_bubble(m["content"], "colmena-bubble-agent"))
+            col.append(_bubble(m["content"], "hivemind-bubble-agent"))
             self.list.append(col)
         self._scroll_end()
 
@@ -109,12 +109,12 @@ class ChatView(Gtk.Box):
             summary = ev["input"].get("command") or ev["input"].get("file_path") or json.dumps(ev["input"], ensure_ascii=False)
             exp = Gtk.Expander(label_widget=Gtk.Label(label=f"⚙ {ev['name']}: {summary[:120]}",
                                                       ellipsize=Pango.EllipsizeMode.END, xalign=0))
-            exp.add_css_class("colmena-tool")
+            exp.add_css_class("hivemind-tool")
             self.tools[ev["id"]] = exp
             self.list.append(exp)
         elif (exp := self.tools.get(ev["id"])):
             out = Gtk.Label(label=ev["content"] or "(sin salida)", xalign=0, selectable=True, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR)
-            out.add_css_class("colmena-code")
+            out.add_css_class("hivemind-code")
             exp.set_child(out)
             if ev["is_error"]:
                 title = exp.get_label_widget()
@@ -123,12 +123,12 @@ class ChatView(Gtk.Box):
 
     def _approval(self, ap):
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        card.add_css_class("colmena-approval")
+        card.add_css_class("hivemind-approval")
         detail = ap["input"].get("command") or ap["input"].get("file_path") or json.dumps(ap["input"], ensure_ascii=False)
         card.append(_label(f"<b>Quiere usar {GLib.markup_escape_text(ap['tool'])}</b>"))
-        card.append(_label(GLib.markup_escape_text(detail[:600]), "colmena-code"))
+        card.append(_label(GLib.markup_escape_text(detail[:600]), "hivemind-code"))
         card.append(_label("«Permitir siempre» guardará: <tt>" + GLib.markup_escape_text(ap["rule"] or ap["tool"]) + "</tt>",
-                           "colmena-system"))
+                           "hivemind-system"))
         row = Gtk.Box(spacing=6)
         for text, decision, css in (("Permitir", "allow", "suggested-action"),
                                     ("Denegar", "deny", "destructive-action"),
@@ -151,7 +151,7 @@ class ChatView(Gtk.Box):
         elif t == "delta" and ev["thread"] == self.thread:
             if self.live is None:
                 self.live = Gtk.Label(wrap=True, xalign=0, halign=Gtk.Align.START)
-                self.live.add_css_class("colmena-bubble-agent")
+                self.live.add_css_class("hivemind-bubble-agent")
                 self.list.append(self.live)
             self.live.set_label(self.live.get_label() + ev["text"])
             self._scroll_end()

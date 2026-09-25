@@ -2,7 +2,7 @@ import zlib
 
 from gi.repository import GLib, Gtk
 
-from colmena.ui.bee_frames import TICK_MS, frame_for
+from hivemind.ui.bee_frames import TICK_MS, frame_for
 
 # One shared clock for every bee on screen. The set holds strong references, but only
 # while a bee is mapped: sidebar rows are rebuilt often and nothing in Python keeps them,
@@ -41,14 +41,14 @@ class AnimatedBee(Gtk.Image):
         if status == self.status:
             return
         if self.status:
-            self.remove_css_class(f"colmena-bee-{self.status}")
+            self.remove_css_class(f"hivemind-bee-{self.status}")
         self.status = status
-        self.add_css_class(f"colmena-bee-{status}")
+        self.add_css_class(f"hivemind-bee-{status}")
         self.render()
 
     def render(self):
         frame, opacity = frame_for(self.status, _clock["tick"], self.offset)
         if (frame, opacity) != self.shown:
             self.shown = (frame, opacity)
-            self.set_from_icon_name(f"colmena-bee-{frame}-symbolic")
+            self.set_from_icon_name(f"hivemind-bee-{frame}-symbolic")
             self.set_opacity(opacity)
