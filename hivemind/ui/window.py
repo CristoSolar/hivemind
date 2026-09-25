@@ -5,7 +5,7 @@ from gi.repository import Adw, Gtk, Pango
 from hivemind.ui.board import BoardView
 from hivemind.ui.chat import ChatView
 from hivemind.ui.client import Client
-from hivemind.ui.dialogs import agent_dialog, model_label, preferences_dialog
+from hivemind.ui.dialogs import agent_dialog, confirm, group_dialog, model_label, preferences_dialog
 from hivemind.ui.routines import RoutinesView
 from hivemind.ui.bee import AnimatedBee
 
@@ -18,7 +18,7 @@ class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="HiveMind", default_width=1100, default_height=720)
         self.agents, self.roles, self.statuses, self.approvals = [], {}, {}, []
-        self.routines, self.tasks = [], []
+        self.routines, self.tasks, self.groups = [], [], []
         self.activities, self.last_active, self.bees = {}, {}, {}
         self.views, self.unread = {}, {}
         self.client = Client(self._on_event, self._on_state)
@@ -31,8 +31,15 @@ class MainWindow(Adw.ApplicationWindow):
 
         side_tb = Adw.ToolbarView()
         side_hb = Adw.HeaderBar(show_start_title_buttons=False, show_end_title_buttons=False)
-        add = Gtk.Button(icon_name="list-add-symbolic", tooltip_text="Nuevo agente")
-        add.connect("clicked", self._new_agent)
+        add = Gtk.MenuButton(icon_name="list-add-symbolic", tooltip_text="Nuevo agente o grupo")
+        menu = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, margin_top=6, margin_bottom=6,
+                       margin_start=6, margin_end=6)
+        for label, handler in (("Nuevo agente", self._new_agent), ("Nuevo grupo", self._new_group)):
+            item = Gtk.Button(label=label)
+            item.add_css_class("flat")
+            item.connect("clicked", lambda _b, h=handler: (add.popdown(), h()))
+            menu.append(item)
+        add.set_popover(Gtk.Popover(child=menu))
         side_hb.pack_start(add)
         prefs = Gtk.Button(icon_name="open-menu-symbolic", tooltip_text="Preferencias")
         prefs.connect("clicked", self._preferences)
@@ -45,13 +52,16 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.stack = Gtk.Stack()
         self.content_hb = Adw.HeaderBar(show_start_title_buttons=False, show_end_title_buttons=False)
-        self.delete_btn = Gtk.Button(icon_name="user-trash-symbolic", tooltip_text="Borrar agente", visible=False)
-        self.delete_btn.connect("clicked", self._delete_agent)
+        self.delete_btn = Gtk.Button(icon_name="user-trash-symbolic", tooltip_text="Borrar", visible=False)
+        self.delete_btn.connect("clicked", self._delete_current)
         self.content_hb.pack_end(self.delete_btn)
-        self.settings_btn = Gtk.Button(icon_name="emblem-system-symbolic", tooltip_text="Ajustes del agente",
-                                       visible=False)
-        self.settings_btn.connect("clicked", self._edit_agent)
+        self.settings_btn = Gtk.Button(icon_name="emblem-system-symbolic", tooltip_text="Ajustes", visible=False)
+        self.settings_btn.connect("clicked", self._edit_current)
         self.content_hb.pack_end(self.settings_btn)
+        self.clear_btn = Gtk.Button(icon_name="edit-clear-all-symbolic", tooltip_text="Limpiar conversación",
+                                    visible=False)
+        self.clear_btn.connect("clicked", self._clear_current)
+        self.content_hb.pack_end(self.clear_btn)
         self.banner = Adw.Banner(title="Daemon detenido", button_label="Iniciar")
         self.banner.connect("button-clicked", lambda *_: os.system("systemctl --user start hivemind &"))
         content_tb = Adw.ToolbarView()
@@ -97,6 +107,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.agents, self.roles = snap["agents"], snap["roles"]
         self.statuses, self.approvals = snap["statuses"], snap["approvals"]
         self.routines, self.tasks = snap.get("routines", []), snap.get("tasks", [])
+        self.groups = snap.get("groups", [])
         self.activities, self.last_active = snap.get("activities", {}), snap.get("last_active", {})
         self._set_capacity(snap["capacity"])
         self._rebuild_sidebar()
@@ -119,7 +130,7 @@ class MainWindow(Adw.ApplicationWindow):
         if thread in ("routines", "board"):
             avatar = Gtk.Image(icon_name="alarm-symbolic" if thread == "routines" else "view-grid-symbolic",
                                pixel_size=24, width_request=32)
-        elif thread == "group":
+        elif thread == "group" or thread.startswith("g-"):
             avatar = Gtk.Image(icon_name="hivemind-hex-symbolic", pixel_size=32)
         else:
             avatar = AnimatedBee(self.statuses.get(thread, "idle"), seed=thread,
@@ -145,6 +156,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.sidebar_list.remove_all()
         self.bees = {}
         self.sidebar_list.append(self._row("group", "Grupo", "Todos los agentes"))
+        for g in self.groups:
+            n = len(g["members"])
+            self.sidebar_list.append(self._row(g["id"], g["name"], f"{n} integrante{'s' if n != 1 else ''}"))
         self.sidebar_list.append(self._row("routines", "Rutinas", f"{len(self.routines)} programadas"))
         self.sidebar_list.append(self._row("board", "Tablero", f"{sum(t['status'] != 'done' for t in self.tasks)} abiertas"))
         for a in self.agents:
@@ -176,13 +190,30 @@ class MainWindow(Adw.ApplicationWindow):
         self.stack.set_visible_child_name(thread)
         if hasattr(self.views[thread], "entry"):
             self.views[thread].entry.grab_focus()
-        special = thread in ("group", "routines", "board")
-        self.delete_btn.set_visible(not special)
-        self.settings_btn.set_visible(not special)
-        name = {"group": "Grupo", "routines": "Rutinas", "board": "Tablero"}.get(thread) or self._names().get(thread, "")
+        kind = self._kind(thread)
+        self.clear_btn.set_visible(kind in ("group", "custom", "agent"))
+        self.clear_btn.set_tooltip_text("Nueva conversación" if kind == "agent" else "Limpiar conversación")
+        self.delete_btn.set_visible(kind in ("custom", "agent"))
+        self.settings_btn.set_visible(kind in ("custom", "agent"))
+        name = self._title(thread)
         self.content_hb.set_title_widget(Adw.WindowTitle(title=name))
         if self.unread.pop(thread, None):
             self._rebuild_sidebar()
+
+    def _kind(self, thread):
+        if thread in ("routines", "board", "group"):
+            return thread
+        return "custom" if thread.startswith("g-") else "agent"
+
+    def _group(self, thread):
+        return next((g for g in self.groups if g["id"] == thread), None)
+
+    def _title(self, thread):
+        fixed = {"group": "Grupo", "routines": "Rutinas", "board": "Tablero"}
+        if thread in fixed:
+            return fixed[thread]
+        group = self._group(thread)
+        return group["name"] if group else self._names().get(thread, "")
 
     def _set_capacity(self, cap):
         self.capacity.set_label(f"{cap['running']}/{cap['max']} activos")
@@ -211,6 +242,13 @@ class MainWindow(Adw.ApplicationWindow):
         elif t == "status":
             self.statuses[ev["agent"]] = ev["status"]
             self._rebuild_sidebar()
+        elif t == "groups":
+            self.groups = ev["groups"]
+            for thread in [t for t in self.views if t.startswith("g-") and not self._group(t)]:
+                self.stack.remove(self.views.pop(thread))  # the group was deleted
+            self._rebuild_sidebar()
+        elif t == "thread_cleared" and ev["thread"] in self.views:
+            self.views[ev["thread"]].load(self.approvals)
         elif t == "routines":
             self.routines = ev["routines"]
             self._rebuild_sidebar()
@@ -239,11 +277,30 @@ class MainWindow(Adw.ApplicationWindow):
     def _new_agent(self, *_):
         agent_dialog(self, self.roles, lambda p: self.client.call("create_agent", p, self._toast_error))
 
-    def _edit_agent(self, *_):
-        agent = next((a for a in self.agents if a["id"] == self._current()), None)
-        if agent:
+    def _new_group(self, *_):
+        group_dialog(self, self.agents, lambda p: self.client.call("create_group", p, self._toast_error))
+
+    def _edit_current(self, *_):
+        thread = self._current()
+        if (group := self._group(thread)):
+            group_dialog(self, self.agents, lambda p: self.client.call(
+                "update_group", {"group": group["id"], **p}, self._toast_error), group)
+        elif (agent := next((a for a in self.agents if a["id"] == thread), None)):
             agent_dialog(self, self.roles, lambda p: self.client.call(
                 "update_agent", {"agent": agent["id"], **p}, self._toast_error), agent)
+
+    def _clear_current(self, *_):
+        thread = self._current()
+        if self._kind(thread) == "agent":
+            name = self._names().get(thread, "")
+            heading, body, action = (f"¿Nueva conversación con {name}?",
+                                     f"Se borra el chat y {name} olvida esta conversación.", "Empezar de cero")
+        else:
+            heading, body, action = (f"¿Limpiar «{self._title(thread)}»?",
+                                     "Se borran los mensajes y los integrantes olvidan esta conversación. "
+                                     "Sus chats privados no cambian.", "Limpiar")
+        confirm(self, heading, body, action,
+                lambda: self.client.call("clear_thread", {"thread": thread}, self._toast_error))
 
     def _preferences(self, *_):
         def opened(settings, err):
@@ -253,22 +310,19 @@ class MainWindow(Adw.ApplicationWindow):
                 self._toast_error(res, e) if e else self.toast.add_toast(Adw.Toast(title="Preferencias guardadas")))))
         self.client.call("get_settings", None, opened)
 
-    def _delete_agent(self, *_):
+    def _delete_current(self, *_):
         thread = self._current()
-        if not thread or thread == "group":
-            return
-        dialog = Adw.AlertDialog(heading=f"¿Borrar a {self._names().get(thread)}?",
-                                 body="Se detiene su trabajo y se borra de la lista. El historial queda guardado.")
-        dialog.add_response("cancel", "Cancelar")
-        dialog.add_response("delete", "Borrar")
-        dialog.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE)
-
-        def done(_d, response):
-            if response == "delete":
+        kind = self._kind(thread)
+        if kind == "custom":
+            confirm(self, f"¿Borrar el grupo «{self._title(thread)}»?",
+                    "Se borran sus mensajes y los integrantes olvidan esta conversación. "
+                    "Las rutinas que iban a este grupo se pausan.", "Borrar",
+                    lambda: self.client.call("delete_group", {"group": thread}, self._toast_error))
+        elif kind == "agent":
+            def delete():
                 view = self.views.pop(thread, None)
                 if view:
                     self.stack.remove(view)
                 self.client.call("delete_agent", {"agent": thread})
-
-        dialog.connect("response", done)
-        dialog.present(self)
+            confirm(self, f"¿Borrar a {self._names().get(thread)}?",
+                    "Se detiene su trabajo y se borra de la lista. El historial queda guardado.", "Borrar", delete)

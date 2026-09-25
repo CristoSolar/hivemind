@@ -36,6 +36,30 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(len(bounds), 2)
         self.assertEqual(bounds[0], bounds[1])
 
+    def test_sidebar_lists_custom_groups_after_grupo(self):
+        import gi
+        gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+        from gi.repository import Adw, Gdk, GLib
+        from hivemind.ui import theme
+        from hivemind.ui.window import MainWindow
+        threads = []
+
+        class App(Adw.Application):
+            def do_activate(self):
+                theme.install(Gdk.Display.get_default())
+                self.win = MainWindow(self)
+                self.win.present()
+                self.win.agents = [{"id": "a1", "name": "Dev", "role": "dev", "model": None}]
+                self.win.groups = [{"id": "g-1", "name": "Lanzamiento", "members": ["a1"]}]
+                self.win._rebuild_sidebar()
+                i = 0
+                while (row := self.win.sidebar_list.get_row_at_index(i)):
+                    threads.append(row.thread)
+                    i += 1
+                GLib.idle_add(self.quit)
+
+        App(application_id="com.gogema.LayoutTest2").run([])
+        self.assertEqual(threads, ["group", "g-1", "routines", "board", "a1"])
 
 if __name__ == "__main__":
     unittest.main()

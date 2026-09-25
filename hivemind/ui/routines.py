@@ -24,7 +24,10 @@ class RoutinesView(Gtk.Box):
         self.routines = []
 
     def _target_name(self, target):
-        return "Grupo" if target == "group" else self.window._names().get(target, "?")
+        if target == "group":
+            return "Grupo"
+        group = self.window._group(target)
+        return group["name"] if group else self.window._names().get(target, "?")
 
     def load(self, routines):
         self.routines = routines
@@ -75,7 +78,8 @@ class RoutinesView(Gtk.Box):
         dialog = Adw.AlertDialog(heading="Editar rutina" if r else "Nueva rutina")
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         name = Gtk.Entry(text=r["name"] if r else "", placeholder_text="Nombre, p. ej. Resumen de anuncios")
-        targets = [("group", "Grupo")] + [(a["id"], a["name"]) for a in self.window.agents]
+        targets = ([("group", "Grupo")] + [(g["id"], g["name"]) for g in self.window.groups]
+                   + [(a["id"], a["name"]) for a in self.window.agents])
         target = Gtk.DropDown.new_from_strings([label for _, label in targets])
         if r:
             target.set_selected(next((i for i, (t, _) in enumerate(targets) if t == r["target"]), 0))

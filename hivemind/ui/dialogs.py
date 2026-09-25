@@ -118,3 +118,41 @@ def preferences_dialog(parent, settings, on_done):
 
     dialog.connect("response", done)
     dialog.present(parent)
+
+
+def group_dialog(parent, agents, on_done, group=None):
+    """New group (group=None) or edit a group's name and members."""
+    dialog = Adw.AlertDialog(heading=f"Editar «{group['name']}»" if group else "Nuevo grupo")
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    name = Gtk.Entry(text=group["name"] if group else "", placeholder_text="Nombre, p. ej. Lanzamiento")
+    box.append(_row("Nombre", name))
+    box.append(Gtk.Label(label="Integrantes", xalign=0))
+    checks = []
+    for a in agents:
+        check = Gtk.CheckButton(label=a["name"], active=bool(group and a["id"] in group["members"]))
+        checks.append((a["id"], check))
+        box.append(check)
+    if group:
+        note = Gtk.Label(label="Quien salga del grupo olvida esta conversación.", xalign=0, wrap=True)
+        note.add_css_class("dim-label")
+        box.append(note)
+    dialog.set_extra_child(box)
+    dialog.add_response("cancel", "Cancelar")
+    dialog.add_response("ok", "Guardar" if group else "Crear")
+    dialog.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
+
+    def done(_d, response):
+        if response == "ok":
+            on_done({"name": name.get_text().strip(), "members": [aid for aid, c in checks if c.get_active()]})
+
+    dialog.connect("response", done)
+    dialog.present(parent)
+
+
+def confirm(parent, heading, body, action, on_yes):
+    dialog = Adw.AlertDialog(heading=heading, body=body)
+    dialog.add_response("cancel", "Cancelar")
+    dialog.add_response("yes", action)
+    dialog.set_response_appearance("yes", Adw.ResponseAppearance.DESTRUCTIVE)
+    dialog.connect("response", lambda _d, r: r == "yes" and on_yes())
+    dialog.present(parent)

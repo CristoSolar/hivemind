@@ -32,6 +32,7 @@ class ChatView(Gtk.Box):
     def __init__(self, client, thread, names):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.client, self.thread, self.names = client, thread, names
+        self.is_group = thread == "group" or thread.startswith("g-")
         self.tools = {}       # tool_use_id -> Gtk.Expander
         self.cards = {}       # approval_id -> widget
         self.live = None      # label receiving deltas
@@ -43,10 +44,10 @@ class ChatView(Gtk.Box):
 
         bar = Gtk.Box(spacing=6, margin_top=6, margin_bottom=10, margin_start=16, margin_end=16)
         self.entry = Gtk.Entry(hexpand=True, placeholder_text=(
-            "Escribe a todos… o usa @Nombre para uno solo" if thread == "group" else "Escribe una tarea…"))
+            "Escribe a todos… o usa @Nombre para uno solo" if self.is_group else "Escribe una tarea…"))
         self.entry.connect("activate", self._send)
         bar.append(self.entry)
-        if thread != "group":
+        if not self.is_group:
             self.stop_btn = Gtk.Button(icon_name="media-playback-stop-symbolic", tooltip_text="Detener")
             self.stop_btn.connect("clicked", lambda *_: client.call("stop", {"agent": thread}))
             bar.append(self.stop_btn)
@@ -100,7 +101,7 @@ class ChatView(Gtk.Box):
             self.list.append(b)
         else:
             col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, halign=Gtk.Align.START)
-            if self.thread == "group":
+            if self.is_group:
                 who = Gtk.Box(spacing=6)
                 bee = Gtk.Image(icon_name="hivemind-bee-up-symbolic", pixel_size=18)
                 bee.add_css_class("hivemind-bee-queued")
