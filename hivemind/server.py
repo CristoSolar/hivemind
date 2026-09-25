@@ -59,6 +59,18 @@ async def _dispatch(hub, method, p, client=None):
         return True
     if method == "task_log":
         return hub.board.log(p["task"])
+    if method == "list_groups":
+        return hub.store.groups()
+    if method == "create_group":
+        return hub.create_group(p["name"], p["members"])
+    if method == "update_group":
+        return hub.update_group(p["group"], p.get("name"), p.get("members"))
+    if method == "delete_group":
+        await hub.delete_group(p["group"])
+        return True
+    if method == "clear_thread":
+        await hub.clear_thread(p["thread"])
+        return True
     raise ValueError(f"Método desconocido: {method}")
 
 

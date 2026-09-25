@@ -131,6 +131,20 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.call("list_tasks"))["result"], [])
         self.assertIn("routines", self.events)
         self.assertIn("tasks", self.events)
+    async def test_group_and_clear_methods(self):
+        a = (await self.call("create_agent", name="Dev", role="dev"))["result"]
+        g = (await self.call("create_group", name="Lanzamiento", members=[a["id"]]))["result"]
+        self.assertEqual(g["members"], [a["id"]])
+        self.assertEqual((await self.call("update_group", group=g["id"], name="Campaña"))["result"]["name"], "Campaña")
+        self.assertEqual(len((await self.call("list_groups"))["result"]), 1)
+        await self.call("send", thread=g["id"], text="hola")
+        await self.hub.drain()
+        await self.call("clear_thread", thread=g["id"])
+        self.assertEqual((await self.call("history", thread=g["id"]))["result"], [])
+        await self.call("delete_group", group=g["id"])
+        self.assertEqual((await self.call("list_groups"))["result"], [])
+        self.assertIn("thread_cleared", self.events)
+        self.assertIn("groups", self.events)
 
 if __name__ == "__main__":
     unittest.main()
