@@ -127,6 +127,24 @@ class RunnerTest(unittest.TestCase):
         asyncio.run(Turn(AGENT, ROLE, "hola", lambda e: None, None, model="opus", client_factory=factory).run())
         self.assertEqual(clients[1].options.model, "opus")  # agent without model -> global default
 
+    def test_board_tools_always_permitted_and_server_passed(self):
+        script = [AssistantMessage(content=[ToolUseBlock(id="t1", name="mcp__tablero__tablero_mover",
+                                                         input={"id": "x", "estado": "done"})], model="m"),
+                  result()]
+        clients, asked = [], []
+
+        async def ask(*a):
+            asked.append(a)
+            return "deny"
+
+        def factory(options):
+            clients.append(FakeClient(options, script))
+            return clients[-1]
+
+        asyncio.run(Turn(AGENT, ROLE, "hola", lambda e: None, ask, mcp_servers={"tablero": "srv"},
+                         client_factory=factory).run())
+        self.assertEqual(asked, [])
+        self.assertEqual(clients[0].options.mcp_servers, {"tablero": "srv"})
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,7 @@ from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions, ClaudeSDKCli
 from colmena.roles import permitted, suggested_rule
 
 DENY_MESSAGE = "El usuario denegó esta acción"
+BOARD_RULE = "mcp__tablero__*"
 _MAX_RESULT = 4000
 
 
@@ -15,17 +16,19 @@ def _text_of(content):
 
 
 class Turn:
-    def __init__(self, agent, role, prompt, emit, ask, model=None, env=None, client_factory=ClaudeSDKClient):
+    def __init__(self, agent, role, prompt, emit, ask, model=None, env=None, mcp_servers=None,
+                 client_factory=ClaudeSDKClient):
         self.agent, self.role, self.prompt = agent, role, prompt
         self.emit, self.ask = emit, ask
         self.model = agent.get("model") or model
         self.env = env
+        self.mcp_servers = mcp_servers
         self.client_factory = client_factory
         self.client = None
         self.stopped = False
 
     async def _can_use(self, tool, input, ctx):
-        rules = self.role["allowed_tools"] + self.agent["extra_allowed"]
+        rules = [BOARD_RULE] + self.role["allowed_tools"] + self.agent["extra_allowed"]
         if permitted(tool, input, rules):
             return PermissionResultAllow()
         decision = await self.ask(tool, input, suggested_rule(tool, input, ctx.suggestions))
@@ -43,6 +46,7 @@ class Turn:
             include_partial_messages=True,
             setting_sources=["user", "project", "local"],
             env=self.env or {},
+            mcp_servers=self.mcp_servers or {},
         )
 
     def _translate(self, m):
