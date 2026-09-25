@@ -60,12 +60,19 @@ class ChatView(Gtk.Box):
         self.names = names
 
     def load(self, approvals=()):
-        child = self.list.get_first_child()
-        while child:
-            self.list.remove(child)
-            child = self.list.get_first_child()
-        self.tools, self.cards, self.live = {}, {}, None
+        # Loads can overlap (selecting a chat, then a hello snapshot): only the latest one
+        # fills the list, and it clears the list when its answer arrives.
+        self.generation = getattr(self, "generation", 0) + 1
+        generation = self.generation
+
         def loaded(res, err):
+            if generation != self.generation:
+                return
+            child = self.list.get_first_child()
+            while child:
+                self.list.remove(child)
+                child = self.list.get_first_child()
+            self.tools, self.cards, self.live = {}, {}, None
             for m in res or []:
                 self._message(m)
             for ap in approvals:
