@@ -62,12 +62,6 @@ def _eyes(kind):
                     f"L{b[0] - px:.2f},{b[1] - py:.2f} L{a[0] - px:.2f},{a[1] - py:.2f} Z")
         return " ".join(arm(cx, cy, dx, dy) for cx, cy in (_EYE_L, _EYE_R)
                         for dx, dy in ((1, 1), (1, -1), (-1, 1), (-1, -1)))
-    if kind == "glasses":  # round frames + bridge cut out of the body, pupils inside
-        L, R = (41.2, 35), (50.8, 35)
-        frames = " ".join(_oval(cx, cy, 4.3, 4.3) + " " + _oval(cx, cy, 3.2, 3.2) for cx, cy in (L, R))
-        pupils = _oval(L[0] + 0.6, L[1], 1.6, 2.2) + " " + _oval(R[0] + 0.6, R[1], 1.6, 2.2)
-        bridge = f"M{L[0] + 4.1},{L[1] - 1.1} L{R[0] - 4.1},{R[1] - 1.1} L{R[0] - 4.1},{R[1] + 0.1} L{L[0] + 4.1},{L[1] + 0.1} Z"
-        return f"{frames} {bridge} {pupils}"
     raise ValueError(kind)
 
 
@@ -94,11 +88,32 @@ _POSES = {
 FRAMES = tuple(_POSES)
 
 
+# Thinking glasses: big round frames, the right one sticking out past the head. The body is cut
+# a little wider than each frame so the frame reads as a separate object, lenses stay clear.
+_GLASS_L, _GLASS_R = (41.0, 33.5), (54.0, 33.5)
+_GLASS_GAP, _GLASS_OUT, _GLASS_IN = 6.4, 5.7, 4.1
+
+
+def _glasses():
+    frames = " ".join(_oval(cx, cy, _GLASS_OUT, _GLASS_OUT) + " " + _oval(cx, cy, _GLASS_IN, _GLASS_IN)
+                      for cx, cy in (_GLASS_L, _GLASS_R))
+    pupils = " ".join(_oval(cx + 0.9, cy + 0.3, 1.9, 2.6) for cx, cy in (_GLASS_L, _GLASS_R))
+    (lx, ly), (rx, ry) = _GLASS_L, _GLASS_R
+    bridge = f"M{lx + 5.4},{ly - 2.2} L{rx - 5.4},{ry - 2.2} L{rx - 5.4},{ry - 0.6} L{lx + 5.4},{ly - 0.6} Z"
+    return (f'<path fill-rule="evenodd" d="{frames}"/><path fill-rule="evenodd" d="{pupils}"/>'
+            f'<path d="{bridge}"/>')
+
+
 def bee(frame):
     wings, eyes, dy, extra = _POSES[frame]
     wing_path = f'<path fill-rule="evenodd" d="{_WINGS[wings]}"/>' if _WINGS[wings] else ""
-    return (f'<g transform="translate(0,{dy})">'
-            f'<path fill-rule="evenodd" d="{_BODY} {_eyes(eyes)} {_STRIPES}"/>{wing_path}'
+    if eyes == "glasses":
+        cuts = " ".join(_oval(cx, cy, _GLASS_GAP, _GLASS_GAP) for cx, cy in (_GLASS_L, _GLASS_R))
+        face, glasses = cuts, _glasses()
+    else:
+        face, glasses = _eyes(eyes), ""
+    return (f'<g transform="translate(0,{dy})">{wing_path}'
+            f'<path fill-rule="evenodd" d="{_BODY} {face} {_STRIPES}"/>{glasses}'
             f'<path d="{_antenna(46, 24, 50, 12, 3)}"/>'
             f'<path d="{_antenna(41, 23.5, 41, 11, -3)}"/></g>{extra}')
 

@@ -103,7 +103,7 @@ class ChatView(Gtk.Box):
             col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, halign=Gtk.Align.START)
             if self.is_group:
                 who = Gtk.Box(spacing=6)
-                bee = Gtk.Image(icon_name="hivemind-bee-up-symbolic", pixel_size=18)
+                bee = Gtk.Image(icon_name="hivemind-bee-up-symbolic", pixel_size=22)
                 bee.add_css_class("hivemind-bee-queued")
                 who.append(bee)
                 who.append(_label(GLib.markup_escape_text(self.names.get(m["author"], "?")), "hivemind-author"))

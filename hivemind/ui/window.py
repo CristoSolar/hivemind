@@ -10,6 +10,8 @@ from hivemind.ui.routines import RoutinesView
 from hivemind.ui.bee import AnimatedBee
 
 
+AVATAR = 40  # sidebar avatar size in px
+
 _STATUS = {"idle": "Inactivo", "queued": "En cola", "working": "Trabajando",
            "waiting": "Esperando aprobación", "error": "Error"}
 
@@ -129,11 +131,11 @@ class MainWindow(Adw.ApplicationWindow):
         box = Gtk.Box(spacing=10, margin_top=6, margin_bottom=6, margin_start=6, margin_end=6)
         if thread in ("routines", "board"):
             avatar = Gtk.Image(icon_name="alarm-symbolic" if thread == "routines" else "view-grid-symbolic",
-                               pixel_size=24, width_request=32)
+                               pixel_size=26, width_request=AVATAR)
         elif thread == "group" or thread.startswith("g-"):
-            avatar = Gtk.Image(icon_name="hivemind-hex-symbolic", pixel_size=32)
+            avatar = Gtk.Image(icon_name="hivemind-hex-symbolic", pixel_size=AVATAR)
         else:
-            avatar = AnimatedBee(self.statuses.get(thread, "idle"), seed=thread,
+            avatar = AnimatedBee(self.statuses.get(thread, "idle"), seed=thread, size=AVATAR,
                                  activity=self.activities.get(thread), last_active=self.last_active.get(thread))
             self.bees[thread] = avatar
         box.append(avatar)

@@ -195,8 +195,8 @@ Panel {
     bar: root.bar
     iconComponent: Component {
       Item {
-        implicitWidth: Style.space(18)
-        implicitHeight: Style.space(18)
+        implicitWidth: Style.space(22)
+        implicitHeight: Style.space(22)
         // Same SVGs as the window; tinted with the shell colours like the tray tints symbolic icons.
         Image {
           id: beeImage
