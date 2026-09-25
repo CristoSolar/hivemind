@@ -42,6 +42,10 @@ class Hub:
         self.routines = Routines(self)
 
     # events -----------------------------------------------------------------
+    def has_window(self):
+        """A GTK window is connected (the always-on bar panel does not count)."""
+        return any(not getattr(fn, "panel", False) for fn in self.clients)
+
     def subscribe(self, fn):
         self.clients.append(fn)
 
@@ -231,7 +235,7 @@ class Hub:
                 self._post(thread, "system", "system", out["text"] or "El turno terminó con error.")
             elif thread == "group":
                 self._route(out["text"], author=agent_id)
-            if origin and not self.clients:
+            if origin and not self.has_window():
                 self.notifier(f"Rutina «{origin['routine']}» lista", (out["text"] or "")[:200])
         except asyncio.CancelledError:
             raise
@@ -261,7 +265,7 @@ class Hub:
         self.pending[ap["id"]] = (agent_id, fut)
         self._status(agent_id, "waiting")
         self.broadcast({"type": "approval", "approval": ap})
-        if not self.clients:
+        if not self.has_window():
             name = self.store.agent(agent_id)["name"]
             self.notifier(f"{name} necesita tu aprobación", f"{tool}: {rule}")
         try:

@@ -81,6 +81,15 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         got = (await self.call("update_agent", agent=a["id"], model="haiku"))["result"]
         self.assertEqual(got["model"], "haiku")
 
+    async def test_hello_as_panel_marks_the_client(self):
+        await self.call("hello", role="panel")
+        self.assertFalse(self.hub.has_window())
+        r2, w2 = await asyncio.open_unix_connection(self.path)
+        w2.write(b'{"id": 1, "method": "hello", "params": {}}\n')
+        await r2.readline()
+        self.assertTrue(self.hub.has_window())
+        w2.close()
+
     async def test_slow_request_does_not_block_the_connection(self):
         release = asyncio.Event()
 

@@ -219,6 +219,19 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         await self.hub.drain()
         self.assertIsNone(FakeTurn.last_env)
 
+    async def test_panel_client_does_not_silence_notifications(self):
+        self.hub.unsubscribe(self.events.append)
+        panel = lambda ev: None
+        panel.panel = True  # the bar widget stays connected all the time
+        self.hub.subscribe(panel)
+        a = self.hub.create_agent("Dev", "dev")
+        await self.hub.send(a["id"], "ASK borra")
+        while not self.store.approvals():
+            await asyncio.sleep(0)
+        self.assertEqual(len(self.notes), 1)
+        self.hub.approve(self.store.approvals()[0]["id"], "deny")
+        await self.hub.drain()
+
     def test_expire_stale_approvals(self):
         self.store.add_approval("a1", "Bash", {}, "Bash")
         self.hub.expire_stale_approvals()

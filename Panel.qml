@@ -105,7 +105,7 @@ Panel {
     parser: SplitParser { onRead: data => root.handle(data) }
     onConnectionStateChanged: {
       root.connected = sock.connected
-      if (sock.connected) root.send("hello", {})
+      if (sock.connected) root.send("hello", { role: "panel" })
       else { root.approvals = []; root.statuses = ({}) }
     }
   }

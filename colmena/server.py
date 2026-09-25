@@ -6,8 +6,10 @@ import sys
 _LINE_LIMIT = 16 * 1024 * 1024  # a pasted log must not drop the connection
 
 
-async def _dispatch(hub, method, p):
+async def _dispatch(hub, method, p, client=None):
     if method == "hello":
+        if client is not None:
+            client.panel = p.get("role") == "panel"
         return hub.snapshot()
     if method == "history":
         return hub.store.history(p["thread"], p.get("before"), p.get("limit", 50))
@@ -74,7 +76,7 @@ async def serve(hub, path):
 
         async def handle(req):
             try:
-                result = await _dispatch(hub, req["method"], req.get("params") or {})
+                result = await _dispatch(hub, req["method"], req.get("params") or {}, on_event)
                 send({"id": req.get("id"), "result": result})
             except Exception as e:  # report to the caller, never drop the connection
                 send({"id": req.get("id"), "error": str(e) or type(e).__name__})
