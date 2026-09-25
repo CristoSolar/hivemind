@@ -75,7 +75,7 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(len(events[3]["content"]), 4000)
         self.assertEqual(asked, [])  # Read is in the role's allowed tools
         self.assertEqual(client.options.resume, None)
-        self.assertEqual(client.options.system_prompt["append"], "rol")
+        self.assertTrue(client.options.system_prompt["append"].startswith("rol"))
 
     def test_extra_allowed_and_ask(self):
         script = [
@@ -145,6 +145,21 @@ class RunnerTest(unittest.TestCase):
                          client_factory=factory).run())
         self.assertEqual(asked, [])
         self.assertEqual(clients[0].options.mcp_servers, {"tablero": "srv"})
+    def test_prompt_tells_agent_its_name_and_the_board(self):
+        clients = []
+
+        def factory(options):
+            clients.append(FakeClient(options, [result()]))
+            return clients[-1]
+
+        asyncio.run(Turn(AGENT, ROLE, "hola", lambda e: None, None, client_factory=factory).run())
+        append = clients[0].options.system_prompt["append"]
+        self.assertTrue(append.startswith("rol"))
+        self.assertIn("Te llamas Dev", append)
+        self.assertIn("tablero", append)
+        # Existing sessions must pick up prompt changes (role edits, this line) on resume.
+        self.assertIs(clients[0].options.system_prompt.get("snapshot"), False)
+
 
 if __name__ == "__main__":
     unittest.main()

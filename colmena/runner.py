@@ -36,12 +36,18 @@ class Turn:
             return PermissionResultDeny(message=DENY_MESSAGE)
         return PermissionResultAllow()
 
+    def _prompt(self):
+        return (f"{self.role['system_prompt']}\n\nTe llamas {self.agent['name']} en Colmena. Hay un tablero "
+                "compartido de tareas (herramientas tablero_listar, tablero_crear, tablero_mover y "
+                "tablero_asignar): úsalo para coordinar trabajo de varios pasos con los demás agentes.")
+
     def _options(self):
         return ClaudeAgentOptions(
             cwd=self.agent["cwd"],
             resume=self.agent["session_id"],
             model=self.model,
-            system_prompt={"type": "preset", "preset": "claude_code", "append": self.role["system_prompt"]},
+            system_prompt={"type": "preset", "preset": "claude_code", "append": self._prompt(),
+                           "snapshot": False},
             can_use_tool=self._can_use,
             include_partial_messages=True,
             setting_sources=["user", "project", "local"],
