@@ -3,5 +3,6 @@ Type=Application
 Name=Colmena
 Comment=Agentes de Claude en equipo
 Exec=colmena
-Icon=system-users-symbolic
+Icon=com.gogema.Colmena
+StartupWMClass=com.gogema.Colmena
 Categories=Development;Utility;

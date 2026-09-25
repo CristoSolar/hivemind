@@ -1,9 +1,13 @@
 import os
+from pathlib import Path
 
 from gi.repository import Adw, Gtk, Pango
 
 from colmena.ui.chat import ChatView
 from colmena.ui.client import Client
+from colmena.ui.dialogs import agent_dialog, model_label, preferences_dialog
+
+ICONS = Path(__file__).parent / "icons"
 
 _STATUS = {"idle": "Inactivo", "queued": "En cola", "working": "Trabajando",
            "waiting": "Esperando aprobación", "error": "Error"}
@@ -27,6 +31,9 @@ class MainWindow(Adw.ApplicationWindow):
         add = Gtk.Button(icon_name="list-add-symbolic", tooltip_text="Nuevo agente")
         add.connect("clicked", self._new_agent)
         side_hb.pack_start(add)
+        prefs = Gtk.Button(icon_name="open-menu-symbolic", tooltip_text="Preferencias")
+        prefs.connect("clicked", self._preferences)
+        side_hb.pack_end(prefs)
         side_tb.add_top_bar(side_hb)
         side_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         side_box.append(Gtk.ScrolledWindow(vexpand=True, child=self.sidebar_list))
@@ -38,6 +45,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.delete_btn = Gtk.Button(icon_name="user-trash-symbolic", tooltip_text="Borrar agente", visible=False)
         self.delete_btn.connect("clicked", self._delete_agent)
         self.content_hb.pack_end(self.delete_btn)
+        self.settings_btn = Gtk.Button(icon_name="emblem-system-symbolic", tooltip_text="Ajustes del agente",
+                                       visible=False)
+        self.settings_btn.connect("clicked", self._edit_agent)
+        self.content_hb.pack_end(self.settings_btn)
         self.banner = Adw.Banner(title="Daemon detenido", button_label="Iniciar")
         self.banner.connect("button-clicked", lambda *_: os.system("systemctl --user start colmena &"))
         content_tb = Adw.ToolbarView()
@@ -88,10 +99,14 @@ class MainWindow(Adw.ApplicationWindow):
     def _row(self, thread, title, subtitle):
         row = Gtk.ListBoxRow()
         row.thread = thread
-        box = Gtk.Box(spacing=8, margin_top=6, margin_bottom=6, margin_start=6, margin_end=6)
-        dot = Gtk.Label(label="●")
+        box = Gtk.Box(spacing=10, margin_top=6, margin_bottom=6, margin_start=6, margin_end=6)
+        icon = "colmena.svg" if thread == "group" else "bee.svg"
+        avatar = Gtk.Overlay(child=Gtk.Image(file=str(ICONS / icon), pixel_size=32))
+        dot = Gtk.Label(label="●", halign=Gtk.Align.END, valign=Gtk.Align.END)
         dot.add_css_class(f"colmena-dot-{self.statuses.get(thread, 'idle')}")
-        box.append(dot)
+        dot.add_css_class("colmena-dot")
+        avatar.add_overlay(dot)
+        box.append(avatar)
         texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True)
         texts.append(Gtk.Label(label=title, xalign=0, ellipsize=Pango.EllipsizeMode.END))
         sub = Gtk.Label(label=subtitle, xalign=0, ellipsize=Pango.EllipsizeMode.END)
@@ -112,7 +127,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.sidebar_list.append(self._row("group", "Grupo", "Todos los agentes"))
         for a in self.agents:
             role = self.roles.get(a["role"], {}).get("label", a["role"])
-            self.sidebar_list.append(self._row(a["id"], a["name"], f"{role} · {_STATUS[self.statuses.get(a['id'], 'idle')]}"))
+            status = _STATUS[self.statuses.get(a["id"], "idle")]
+            self.sidebar_list.append(self._row(a["id"], a["name"], f"{role} · {model_label(a.get('model'))} · {status}"))
         i = 0
         while (row := self.sidebar_list.get_row_at_index(i)):
             if row.thread == keep:
@@ -131,6 +147,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.stack.set_visible_child_name(thread)
         self.views[thread].entry.grab_focus()
         self.delete_btn.set_visible(thread != "group")
+        self.settings_btn.set_visible(thread != "group")
         name = "Grupo" if thread == "group" else self._names().get(thread, "")
         self.content_hb.set_title_widget(Adw.WindowTitle(title=name))
         if self.unread.pop(thread, None):
@@ -169,31 +186,26 @@ class MainWindow(Adw.ApplicationWindow):
             view.on_event(ev)
 
     # dialogs ----------------------------------------------------------------
+    def _toast_error(self, res, err):
+        if err:
+            self.toast.add_toast(Adw.Toast(title=err))
+
     def _new_agent(self, *_):
-        dialog = Adw.AlertDialog(heading="Nuevo agente")
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        name = Gtk.Entry(placeholder_text="Nombre (sin espacios), p. ej. Dev")
-        roles = list(self.roles)
-        role = Gtk.DropDown.new_from_strings([self.roles[r]["label"] for r in roles])
-        cwd = Gtk.Entry(placeholder_text="Carpeta de trabajo (vacío = la del rol)")
-        for w in (name, role, cwd):
-            box.append(w)
-        dialog.set_extra_child(box)
-        dialog.add_response("cancel", "Cancelar")
-        dialog.add_response("create", "Crear")
-        dialog.set_response_appearance("create", Adw.ResponseAppearance.SUGGESTED)
+        agent_dialog(self, self.roles, lambda p: self.client.call("create_agent", p, self._toast_error))
 
-        def done(_d, response):
-            if response != "create":
-                return
-            params = {"name": name.get_text().strip(), "role": roles[role.get_selected()]}
-            if cwd.get_text().strip():
-                params["cwd"] = cwd.get_text().strip()
-            self.client.call("create_agent", params,
-                             lambda res, err: err and self.toast.add_toast(Adw.Toast(title=err)))
+    def _edit_agent(self, *_):
+        agent = next((a for a in self.agents if a["id"] == self._current()), None)
+        if agent:
+            agent_dialog(self, self.roles, lambda p: self.client.call(
+                "update_agent", {"agent": agent["id"], **p}, self._toast_error), agent)
 
-        dialog.connect("response", done)
-        dialog.present(self)
+    def _preferences(self, *_):
+        def opened(settings, err):
+            if err:
+                return self._toast_error(None, err)
+            preferences_dialog(self, settings, lambda p: self.client.call("set_settings", p, lambda res, e: (
+                self._toast_error(res, e) if e else self.toast.add_toast(Adw.Toast(title="Preferencias guardadas")))))
+        self.client.call("get_settings", None, opened)
 
     def _delete_agent(self, *_):
         thread = self._current()

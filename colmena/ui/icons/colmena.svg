@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Colmena: a honeycomb hexagon -->
+  <polygon points="64,6 114,35 114,93 64,122 14,93 14,35" fill="#f5b400" stroke="#3d2a00" stroke-width="6" stroke-linejoin="round"/>
+  <g fill="#ffd54a" stroke="#3d2a00" stroke-width="4" stroke-linejoin="round">
+    <polygon points="64,28 80,37 80,55 64,64 48,55 48,37"/>
+    <polygon points="46,59 62,68 62,86 46,95 30,86 30,68"/>
+    <polygon points="82,59 98,68 98,86 82,95 66,86 66,68"/>
+  </g>
+  <polygon points="64,34 74,40 74,52 64,58 54,52 54,40" fill="#fff3c4" opacity="0.6"/>
+</svg>

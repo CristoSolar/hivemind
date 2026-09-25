@@ -10,3 +10,6 @@ colmena = "colmena.ui.app:main"
 
 [tool.setuptools.packages.find]
 include = ["colmena*"]
+
+[tool.setuptools.package-data]
+"colmena.ui" = ["icons/*.svg"]

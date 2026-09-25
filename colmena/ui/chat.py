@@ -1,8 +1,11 @@
 import json
+from pathlib import Path
 
 from gi.repository import GLib, Gtk, Pango
 
 from colmena.ui.markdown import segments
+
+BEE = Path(__file__).parent / "icons" / "bee.svg"
 
 
 def _label(markup, css=None):
@@ -92,7 +95,10 @@ class ChatView(Gtk.Box):
         else:
             col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, halign=Gtk.Align.START)
             if self.thread == "group":
-                col.append(_label(GLib.markup_escape_text(self.names.get(m["author"], "?")), "colmena-author"))
+                who = Gtk.Box(spacing=6)
+                who.append(Gtk.Image(file=str(BEE), pixel_size=18))
+                who.append(_label(GLib.markup_escape_text(self.names.get(m["author"], "?")), "colmena-author"))
+                col.append(who)
             col.append(_bubble(m["content"], "colmena-bubble-agent"))
             self.list.append(col)
         self._scroll_end()

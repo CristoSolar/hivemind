@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Kawaii bee used as the agent avatar -->
+  <g stroke="#2b2118" stroke-width="2" stroke-linecap="round" fill="none">
+    <path d="M26 16 Q22 8 17 7"/>
+    <path d="M38 16 Q42 8 47 7"/>
+  </g>
+  <circle cx="17" cy="7" r="3" fill="#2b2118"/>
+  <circle cx="47" cy="7" r="3" fill="#2b2118"/>
+  <ellipse cx="17" cy="26" rx="10" ry="8" fill="#e8f6ff" stroke="#2b2118" stroke-width="2" opacity="0.95"/>
+  <ellipse cx="47" cy="26" rx="10" ry="8" fill="#e8f6ff" stroke="#2b2118" stroke-width="2" opacity="0.95"/>
+  <ellipse cx="32" cy="38" rx="22" ry="20" fill="#ffd23f" stroke="#2b2118" stroke-width="2.5"/>
+  <path d="M15.5 47 Q32 52 48.5 47 L47 50.5 Q32 55.5 17 50.5 Z" fill="#2b2118"/>
+  <path d="M21 54.5 Q32 58.5 43 54.5 Q38 58 32 58 Q26 58 21 54.5 Z" fill="#2b2118"/>
+  <circle cx="24" cy="34" r="4" fill="#2b2118"/>
+  <circle cx="40" cy="34" r="4" fill="#2b2118"/>
+  <circle cx="25.4" cy="32.6" r="1.4" fill="#ffffff"/>
+  <circle cx="41.4" cy="32.6" r="1.4" fill="#ffffff"/>
+  <ellipse cx="18" cy="40" rx="3.5" ry="2.2" fill="#ff8fab" opacity="0.8"/>
+  <ellipse cx="46" cy="40" rx="3.5" ry="2.2" fill="#ff8fab" opacity="0.8"/>
+  <path d="M29 39 Q32 42 35 39" stroke="#2b2118" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>
