@@ -15,9 +15,19 @@ class Routines:
     def _changed(self):
         self.hub.broadcast({"type": "routines", "routines": self.list()})
 
+    def _target_exists(self, target):
+        return target == "group" or self.store.group(target) is not None or self.store.agent(target) is not None
+
+    def pause_target(self, target):
+        for r in self.store.routines():
+            if r["target"] == target and r["enabled"]:
+                self.store.update_routine(r["id"], enabled=False)
+                self.hub._post("group", "system", "system", f"La rutina «{r['name']}» se pausó: su destino ya no existe.")
+        self._changed()
+
     def _check_target(self, target):
-        if target != "group" and self.store.agent(target) is None:
-            raise ValueError("La rutina debe ir al Grupo o a un agente que exista.")
+        if not self._target_exists(target):
+            raise ValueError("La rutina debe ir a un grupo o a un agente que exista.")
 
     @staticmethod
     def _next(schedule, now):
@@ -69,7 +79,7 @@ class Routines:
         self._changed()
 
     async def _fire(self, r, now, reschedule):
-        if r["target"] != "group" and self.store.agent(r["target"]) is None:
+        if not self._target_exists(r["target"]):
             self.store.update_routine(r["id"], enabled=False)
             self.hub._post("group", "system", "system",
                            f"La rutina «{r['name']}» se pausó: su agente ya no existe.")

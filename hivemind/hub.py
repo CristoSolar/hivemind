@@ -23,6 +23,7 @@ def notify(title, body):
 
 MODELS = (None, "opus", "sonnet", "haiku")  # None = Claude Code's default
 AUTH_MODES = ("subscription", "api_key")
+PRIVATE_BRIDGE = 10  # private messages an agent sees when it speaks in a group
 
 
 class Hub:
@@ -39,7 +40,7 @@ class Hub:
         self.statuses = {a["id"]: "idle" for a in store.agents()}
         self.activities = {}  # agent_id -> "thinking" | "tool" while a turn runs
         self.last_active = {a["id"]: store.last_activity(a["id"]) or a["created_at"] for a in store.agents()}
-        self.hops = 0
+        self.hops = {}  # thread -> agent-to-agent hops since the last user message
         self.per_turn_mb = float(store.get("per_turn_mb", capacity.DEFAULT_PER_TURN_MB))
         self.board = Board(self)
         self.routines = Routines(self)
@@ -88,7 +89,84 @@ class Hub:
         return {"agents": self.store.agents(), "roles": self.roles, "statuses": self.statuses, "settings": self.settings(),
                 "activities": self.activities, "last_active": self.last_active,
                 "approvals": self.store.approvals(), "capacity": self._capacity(),
-                "routines": self.routines.list(), "tasks": self.board.list()}
+                "routines": self.routines.list(), "tasks": self.board.list(), "groups": self.store.groups()}
+
+    # conversations --------------------------------------------------------------
+    def is_group(self, thread):
+        return thread == "group" or (thread.startswith("g-") and self.store.group(thread) is not None)
+
+    def members(self, thread):
+        agents = self.store.agents()
+        if thread == "group":
+            return agents
+        group = self.store.group(thread)
+        return [a for a in agents if group and a["id"] in group["members"]]
+
+    def _check_members(self, members):
+        known = {a["id"] for a in self.store.agents()}
+        if not members or any(m not in known for m in members):
+            raise ValueError("Elige al menos un agente que exista.")
+        return list(dict.fromkeys(members))
+
+    def create_group(self, name, members):
+        name = (name or "").strip()
+        if not name:
+            raise ValueError("El grupo necesita un nombre.")
+        members = self._check_members(members)
+        group = self.store.create_group(name)
+        self.store.set_members(group["id"], members)
+        self.broadcast({"type": "groups", "groups": self.store.groups()})
+        return self.store.group(group["id"])
+
+    def update_group(self, group_id, name=None, members=None):
+        group = self.store.group(group_id)
+        if group is None:
+            raise ValueError("Ese grupo no existe.")
+        if name is not None:
+            if not name.strip():
+                raise ValueError("El grupo necesita un nombre.")
+            self.store.rename_group(group_id, name.strip())
+        if members is not None:
+            members = self._check_members(members)
+            for gone in set(group["members"]) - set(members):
+                self.store.delete_sessions(agent_id=gone, thread=group_id)  # they forget this group
+            self.store.set_members(group_id, members)
+        self.broadcast({"type": "groups", "groups": self.store.groups()})
+        return self.store.group(group_id)
+
+    async def delete_group(self, group_id):
+        if self.store.group(group_id) is None:
+            raise ValueError("Ese grupo no existe.")
+        await self.clear_thread(group_id)
+        self.store.delete_group(group_id)
+        self.routines.pause_target(group_id)
+        self.broadcast({"type": "groups", "groups": self.store.groups()})
+
+    async def clear_thread(self, thread):
+        if self.is_group(thread):
+            members = [a["id"] for a in self.members(thread)]
+        elif self.store.agent(thread):
+            members = [thread]
+        else:
+            raise ValueError("Esa conversación no existe.")
+        # Stop what is running in this conversation first, so nothing is posted after the wipe.
+        self.queue = deque(q for q in self.queue if q[1] != thread)
+        stopping = []
+        for agent_id, (turn, task, running_thread) in list(self.running.items()):
+            if running_thread == thread:
+                for ap_id, (a, _) in list(self.pending.items()):
+                    if a == agent_id:
+                        self.approve(ap_id, "deny")
+                await turn.stop()
+                stopping.append(task)
+        if stopping:
+            await asyncio.gather(*stopping, return_exceptions=True)
+        self.store.delete_messages(thread)
+        for agent_id in members:
+            self.store.delete_sessions(agent_id=agent_id, thread=thread)
+        if thread == "group" or thread.startswith("g-"):
+            self.hops.pop(thread, None)
+        self.broadcast({"type": "thread_cleared", "thread": thread})
 
     # agents -----------------------------------------------------------------
     def _check_model(self, model):
@@ -131,8 +209,9 @@ class Hub:
         if changes.get("cwd"):
             cwd = self._check_cwd(changes["cwd"])
             if cwd != agent["cwd"]:
-                # Claude Code keeps sessions per project folder; the old one cannot be resumed.
-                fields.update(cwd=cwd, session_id=None)
+                # Claude Code keeps sessions per project folder; none of them can be resumed.
+                fields.update(cwd=cwd)
+                self.store.delete_sessions(agent_id=agent_id)
                 self._post(agent_id, "system", "system",
                            f"Carpeta cambiada a {cwd}. La conversación empieza de cero.")
         self.store.update_agent(agent_id, **fields)
@@ -171,45 +250,58 @@ class Hub:
         self.activities.pop(agent_id, None)
         self.last_active.pop(agent_id, None)
         self.broadcast({"type": "agents", "agents": self.store.agents()})
+        self.broadcast({"type": "groups", "groups": self.store.groups()})
 
     # messages ---------------------------------------------------------------
     async def send(self, thread, text, origin=None):
         self._post(thread, "user", "text", text)
-        if thread == "group":
-            self.hops = 0
-            self._route(text, author=None, origin=origin)
+        if self.is_group(thread):
+            self.hops[thread] = 0
+            self._route(thread, text, author=None, origin=origin)
         elif self.store.agent(thread):
             self._enqueue(thread, thread, text, origin)
 
-    def _route(self, text, author, origin=None):
+    def _route(self, thread, text, author, origin=None):
         agents = self.store.agents()
+        members = {a["id"] for a in self.members(thread)}
         me = next((a["name"] for a in agents if a["id"] == author), None)
         known, unknown = mentions(text, [a["name"] for a in agents], exclude=me)
         if unknown:
-            self._post("group", "system", "system", "No hay agentes llamados: " + ", ".join("@" + u for u in unknown))
+            self._post(thread, "system", "system", "No hay agentes llamados: " + ", ".join("@" + u for u in unknown))
+        outsiders = [a["name"] for a in agents if a["name"] in known and a["id"] not in members]
+        if outsiders:
+            self._post(thread, "system", "system",
+                       " ".join(f"«{n}» no está en este grupo." for n in outsiders))
+            known = [n for n in known if n not in outsiders]
         if not known:
-            if author is not None or unknown:
+            if author is not None or unknown or outsiders:
                 return
-            known = [a["name"] for a in agents]  # user wrote to the group with no @: everyone answers
+            known = [a["name"] for a in agents if a["id"] in members]  # no @: every member answers
         if author is not None:
-            if self.hops >= MAX_HOPS:
-                self._post("group", "system", "system",
+            if self.hops.get(thread, 0) >= MAX_HOPS:
+                self._post(thread, "system", "system",
                            f"Se alcanzó el límite de {MAX_HOPS} pases entre agentes. Escribe para continuar.")
                 return
-            self.hops += 1
-        prompt = self._group_prompt()
+            self.hops[thread] = self.hops.get(thread, 0) + 1
         for a in agents:
             if a["name"] in known:
-                self._enqueue(a["id"], "group", prompt, origin)
+                self._enqueue(a["id"], thread, self._group_prompt(thread, a["id"]), origin)
 
-    def _group_prompt(self):
+    def _group_prompt(self, thread, agent_id):
         names = {a["id"]: a["name"] for a in self.store.agents()}
-        lines = []
-        for m in self.store.history("group", limit=CONTEXT_MESSAGES):
-            who = {"user": "Usuario", "system": "Sistema"}.get(m["author"]) or names.get(m["author"], "?")
-            lines.append(f"[{who}]: {m['content']}")
-        return ("Mensajes recientes del chat grupal de HiveMind. Te mencionaron en el último. "
-                "Tu respuesta se publicará en el grupo.\n\n" + "\n".join(lines))
+
+        def who(m):
+            return {"user": "Usuario", "system": "Sistema"}.get(m["author"]) or names.get(m["author"], "?")
+
+        lines = [f"[{who(m)}]: {m['content']}" for m in self.store.history(thread, limit=CONTEXT_MESSAGES)]
+        prompt = ("Mensajes recientes de esta conversación grupal de HiveMind. Te mencionaron en el último. "
+                  "Tu respuesta se publicará en el grupo.\n\n" + "\n".join(lines))
+        # Bridge: what the agent and the user said in private, so status questions get real answers.
+        private = [m for m in self.store.history(agent_id, limit=40) if m["kind"] == "text"][-PRIVATE_BRIDGE:]
+        if private:
+            prompt += ("\n\nTu chat privado reciente con el usuario (contexto, no lo repitas si no hace falta):\n"
+                       + "\n".join(f"[{who(m)}]: {m['content'][:500]}" for m in private))
+        return prompt
 
     # queue ------------------------------------------------------------------
     def _enqueue(self, agent_id, thread, prompt, origin=None):
@@ -230,6 +322,7 @@ class Hub:
             agent = self.store.agent(agent_id)
             if agent is None:
                 continue
+            agent = {**agent, "session_id": self.store.session(agent_id, item[1])}
             turn = self.turn_factory(
                 agent, self.roles[agent["role"]], item[2],
                 emit=lambda ev, a=agent_id, t=item[1]: self._on_event(a, t, ev),
@@ -237,7 +330,7 @@ class Hub:
                 model=self.config.get("model"), env=self._env(),
                 mcp_servers={"tablero": self.board.mcp_server(agent_id)})
             task = asyncio.get_running_loop().create_task(self._run(agent, item[1], turn, item[3]))
-            self.running[agent_id] = (turn, task)
+            self.running[agent_id] = (turn, task, item[1])
         self.broadcast({"type": "capacity", **self._capacity()})
 
     async def _run(self, agent, thread, turn, origin=None):
@@ -248,12 +341,12 @@ class Hub:
         try:
             out = await turn.run()
             if out["session_id"] and self.store.agent(agent_id):
-                self.store.set_session(agent_id, out["session_id"])
+                self.store.save_session(agent_id, thread, out["session_id"])
             if out["is_error"]:
                 status = "error"
                 self._post(thread, "system", "system", out["text"] or "El turno terminó con error.")
-            elif thread == "group":
-                self._route(out["text"], author=agent_id)
+            elif self.is_group(thread):
+                self._route(thread, out["text"], author=agent_id)
             if origin and not self.has_window():
                 self.notifier(f"Rutina «{origin['routine']}» lista", (out["text"] or "")[:200])
         except asyncio.CancelledError:
@@ -341,7 +434,7 @@ class Hub:
 
     async def drain(self):
         while self.running or self.queue:
-            tasks = [t for _, t in self.running.values()]
+            tasks = [t for _, t, _ in self.running.values()]
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
             else:

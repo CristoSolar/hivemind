@@ -69,7 +69,7 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         a = self.hub.create_agent("Dev", "dev")
         await self.hub.send(a["id"], "hola")
         await self.hub.drain()
-        self.assertEqual(self.store.agent(a["id"])["session_id"], "s-Dev")
+        self.assertEqual(self.store.session(a["id"], a["id"]), "s-Dev")
         self.assertEqual([m["content"] for m in self.store.history(a["id"])], ["hola", "ok"])
         self.assertIn({"type": "status", "agent": a["id"], "status": "idle"}, self.events)
 
@@ -183,19 +183,20 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_update_model_keeps_session(self):
         a = self.hub.create_agent("Dev", "dev")
-        self.store.set_session(a["id"], "s1")
+        self.store.save_session(a["id"], a["id"], "s1")
         self.hub.update_agent(a["id"], model="haiku")
-        got = self.store.agent(a["id"])
-        self.assertEqual((got["model"], got["session_id"]), ("haiku", "s1"))
+        self.assertEqual((self.store.agent(a["id"])["model"], self.store.session(a["id"], a["id"])), ("haiku", "s1"))
         self.assertEqual(self.events[-1]["type"], "agents")
 
     async def test_update_cwd_resets_session_with_notice(self):
         a = self.hub.create_agent("Dev", "dev")
-        self.store.set_session(a["id"], "s1")
+        self.store.save_session(a["id"], a["id"], "s1")
+        self.store.save_session(a["id"], "group", "g1")
         with tempfile.TemporaryDirectory(dir=os.path.expanduser("~/.cache/tmp")) as d:
             self.hub.update_agent(a["id"], cwd=d)
             got = self.store.agent(a["id"])
-            self.assertEqual((got["cwd"], got["session_id"]), (d, None))
+            self.assertEqual(got["cwd"], d)
+            self.assertEqual((self.store.session(a["id"], a["id"]), self.store.session(a["id"], "group")), (None, None))
             self.assertEqual(self.store.history(a["id"])[-1]["author"], "system")
             with self.assertRaises(ValueError):
                 self.hub.update_agent(a["id"], cwd=d + "/no-existe")
@@ -287,6 +288,122 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         await self.hub.send(a["id"], "hola")
         await self.hub.drain()
         self.assertEqual(list(seen["servers"]), ["tablero"])
+    def make(self, *names):
+        return [self.hub.create_agent(n, "dev") for n in names]
+
+    async def test_custom_group_routes_only_to_members(self):
+        dev, mkt, ops = self.make("Dev", "Mkt", "Ops")
+        g = self.hub.create_group("Lanzamiento", [dev["id"], mkt["id"]])
+        await self.hub.send(g["id"], "hola equipo")
+        await self.hub.drain()
+        self.assertEqual(sorted(x[0] for x in FakeTurn.log if x[1] == "start"), ["Dev", "Mkt"])
+        self.assertEqual({m["thread"] for m in self.store.history(g["id"])}, {g["id"]})
+
+    async def test_mentioning_a_non_member_gives_notice(self):
+        dev, ops = self.make("Dev", "Ops")
+        g = self.hub.create_group("Solo dev", [dev["id"]])
+        await self.hub.send(g["id"], "@Ops ayuda")
+        await self.hub.drain()
+        self.assertEqual(FakeTurn.log, [])
+        self.assertIn("no está en este grupo", self.store.history(g["id"])[-1]["content"])
+
+    async def test_group_prompt_has_thread_and_private_bridge_only(self):
+        prompts = {}
+
+        class SpyTurn(FakeTurn):
+            def __init__(self, agent, role, prompt, *a, **kw):
+                prompts.setdefault(agent["name"], []).append(prompt)
+                super().__init__(agent, role, prompt, *a, **kw)
+
+        self.hub.turn_factory = SpyTurn
+        dev, = self.make("Dev")
+        g1 = self.hub.create_group("Uno", [dev["id"]])
+        g2 = self.hub.create_group("Dos", [dev["id"]])
+        await self.hub.send(dev["id"], "avance: la API ya está lista")
+        await self.hub.drain()
+        await self.hub.send(g1["id"], "secreto del grupo uno")
+        await self.hub.drain()
+        await self.hub.send(g2["id"], "¿cómo va el desarrollo?")
+        await self.hub.drain()
+        last = prompts["Dev"][-1]
+        self.assertIn("¿cómo va el desarrollo?", last)
+        self.assertIn("Tu chat privado reciente con el usuario", last)
+        self.assertIn("la API ya está lista", last)
+        self.assertNotIn("secreto del grupo uno", last)
+
+    async def test_sessions_are_per_conversation(self):
+        dev, = self.make("Dev")
+        seen = []
+
+        class SessionTurn(FakeTurn):
+            async def run(self):
+                seen.append(self.agent["session_id"])
+                return {**await super().run(), "session_id": "s-" + self.prompt[:5]}
+
+        self.hub.turn_factory = SessionTurn
+        await self.hub.send(dev["id"], "priv1")
+        await self.hub.drain()
+        await self.hub.send("group", "@Dev grupo")
+        await self.hub.drain()
+        await self.hub.send(dev["id"], "priv2")
+        await self.hub.drain()
+        self.assertEqual(seen, [None, None, "s-priv1"])
+        self.assertEqual(self.store.session(dev["id"], dev["id"]), "s-priv2")
+        self.assertTrue(self.store.session(dev["id"], "group").startswith("s-"))
+
+    async def test_hops_are_per_thread(self):
+        a, b = self.make("A", "B")
+        FakeTurn.replies = {"A": "@B", "B": "@A"}
+        g = self.hub.create_group("AB", [a["id"], b["id"]])
+        await self.hub.send(g["id"], "@A empieza")
+        await self.hub.drain()
+        self.assertEqual(len([x for x in FakeTurn.log if x[1] == "start"]), 6)
+        self.assertEqual(self.store.history(g["id"])[-1]["author"], "system")
+        self.assertEqual(self.store.history("group"), [])
+
+    async def test_clear_thread_stops_its_turns_and_forgets_only_that_conversation(self):
+        FakeTurn.gate = asyncio.Event()
+        dev, = self.make("Dev")
+        self.store.save_session(dev["id"], dev["id"], "private")
+        self.store.save_session(dev["id"], "group", "old-group")
+        await self.hub.send("group", "@Dev tema viejo")
+        await asyncio.sleep(0)  # the turn is running and waiting on the gate
+        await self.hub.clear_thread("group")
+        await self.hub.drain()
+        self.assertEqual(self.store.history("group"), [])  # nothing reappears after the stop
+        self.assertIsNone(self.store.session(dev["id"], "group"))
+        self.assertEqual(self.store.session(dev["id"], dev["id"]), "private")
+        self.assertIn({"type": "thread_cleared", "thread": "group"}, self.events)
+
+    async def test_new_conversation_clears_private_chat(self):
+        dev, = self.make("Dev")
+        await self.hub.send(dev["id"], "hola")
+        await self.hub.drain()
+        self.store.save_session(dev["id"], "group", "keep")
+        await self.hub.clear_thread(dev["id"])
+        self.assertEqual(self.store.history(dev["id"]), [])
+        self.assertIsNone(self.store.session(dev["id"], dev["id"]))
+        self.assertEqual(self.store.session(dev["id"], "group"), "keep")
+
+    async def test_group_crud_validation_and_cascades(self):
+        dev, mkt = self.make("Dev", "Mkt")
+        for bad in (("", [dev["id"]]), ("X", []), ("X", ["nadie"])):
+            with self.assertRaises(ValueError):
+                self.hub.create_group(*bad)
+        g = self.hub.create_group("Campaña", [dev["id"], mkt["id"]])
+        self.store.save_session(mkt["id"], g["id"], "s")
+        self.hub.update_group(g["id"], members=[dev["id"]])  # removing a member forgets their group memory
+        self.assertIsNone(self.store.session(mkt["id"], g["id"]))
+        r = self.hub.routines.create("R", g["id"], "hola", {"every_hours": 1})
+        await self.hub.delete_group(g["id"])
+        self.assertIsNone(self.store.group(g["id"]))
+        self.assertFalse(self.store.routine(r["id"])["enabled"])
+        self.assertIn({"type": "groups", "groups": []}, self.events)
+
+    def test_snapshot_lists_groups(self):
+        dev, = self.make("Dev")
+        self.hub.create_group("G", [dev["id"]])
+        self.assertEqual([g["name"] for g in self.hub.snapshot()["groups"]], ["G"])
 
 if __name__ == "__main__":
     unittest.main()
