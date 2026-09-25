@@ -89,6 +89,29 @@ class RunnerTest(unittest.TestCase):
         self.assertIsInstance(client.decisions[1], PermissionResultDeny)
         self.assertEqual(client.decisions[1].message, DENY_MESSAGE)
 
+    def test_stop_while_connecting_skips_the_prompt(self):
+        clients = []
+
+        class SlowClient(FakeClient):
+            async def __aenter__(self):
+                await asyncio.sleep(0.05)  # CLI still starting
+                return self
+
+        def factory(options):
+            clients.append(SlowClient(options, [result()]))
+            return clients[-1]
+
+        async def scenario():
+            turn = Turn(AGENT, ROLE, "hola", lambda e: None, None, client_factory=factory)
+            task = asyncio.ensure_future(turn.run())
+            await asyncio.sleep(0.01)
+            await turn.stop()
+            return await task
+
+        out = asyncio.run(scenario())
+        self.assertFalse(hasattr(clients[0], "prompt"))
+        self.assertFalse(out["is_error"])
+
 
 if __name__ == "__main__":
     unittest.main()

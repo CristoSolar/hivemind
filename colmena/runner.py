@@ -20,6 +20,7 @@ class Turn:
         self.emit, self.ask, self.model = emit, ask, model
         self.client_factory = client_factory
         self.client = None
+        self.stopped = False
 
     async def _can_use(self, tool, input, ctx):
         rules = self.role["allowed_tools"] + self.agent["extra_allowed"]
@@ -61,6 +62,8 @@ class Turn:
     async def run(self):
         out = {"session_id": self.agent["session_id"], "is_error": True, "text": "", "cost": None}
         async with self.client_factory(self._options()) as client:
+            if self.stopped:  # stopped while the CLI was still starting
+                return {**out, "is_error": False}
             self.client = client
             await client.query(self.prompt)
             async for m in client.receive_response():
@@ -73,5 +76,6 @@ class Turn:
         return out
 
     async def stop(self):
+        self.stopped = True
         if self.client:
             await self.client.interrupt()

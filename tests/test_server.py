@@ -18,7 +18,7 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         self.hub = Hub(Store(":memory:"), ROLES, turn_factory=FakeTurn,
                        meminfo=lambda: {"MemTotal": 32 * GB, "MemAvailable": 24 * GB}, notifier=lambda t, b: None)
         self.server = await serve(self.hub, self.path)
-        self.r, self.w = await asyncio.open_unix_connection(self.path)
+        self.r, self.w = await asyncio.open_unix_connection(self.path, limit=16 * 1024 * 1024)
         self.n, self.events = 0, []
 
     async def asyncTearDown(self):
@@ -57,6 +57,39 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         await self.call("hello")
         await self.call("create_agent", name="Dev", role="dev")
         self.assertEqual(self.events, ["agents"])
+
+    async def test_huge_message_is_accepted(self):
+        a = (await self.call("create_agent", name="Dev", role="dev"))["result"]
+        big = "x" * 200_000
+        self.assertEqual((await self.call("send", thread=a["id"], text=big))["result"], True)
+        await self.hub.drain()
+
+    async def test_non_object_json_keeps_connection(self):
+        self.w.write(b"[1, 2]\n")
+        self.assertIn("result", await self.call("hello"))
+
+    async def test_slow_request_does_not_block_the_connection(self):
+        release = asyncio.Event()
+
+        class StuckTurn(FakeTurn):
+            async def run(self):
+                await release.wait()
+                return {"session_id": None, "is_error": False, "text": "", "cost": 0}
+
+            async def stop(self):
+                pass  # e.g. CLI not connected yet
+
+        self.hub.turn_factory = StuckTurn
+        a = (await self.call("create_agent", name="Dev", role="dev"))["result"]
+        await self.call("send", thread=a["id"], text="hola")
+        self.n += 1
+        self.w.write((json.dumps({"id": self.n, "method": "delete_agent", "params": {"agent": a["id"]}}) + "\n").encode())
+        try:
+            hello = await asyncio.wait_for(self.call("hello"), 2)
+            self.assertIn("result", hello)
+        finally:
+            release.set()
+            await self.hub.drain()
 
 
 if __name__ == "__main__":

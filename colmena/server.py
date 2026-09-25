@@ -3,6 +3,8 @@ import json
 import os
 import sys
 
+_LINE_LIMIT = 16 * 1024 * 1024  # a pasted log must not drop the connection
+
 
 async def _dispatch(hub, method, p):
     if method == "hello":
@@ -38,19 +40,29 @@ async def serve(hub, path):
         def on_event(ev):
             send({"event": ev})
 
+        async def handle(req):
+            try:
+                result = await _dispatch(hub, req["method"], req.get("params") or {})
+                send({"id": req.get("id"), "result": result})
+            except Exception as e:  # report to the caller, never drop the connection
+                send({"id": req.get("id"), "error": str(e) or type(e).__name__})
+
         hub.subscribe(on_event)
+        tasks = set()
         try:
             while line := await reader.readline():
                 try:
                     req = json.loads(line)
                 except ValueError:
-                    send({"id": None, "error": "JSON inválido"})
+                    req = None
+                if not isinstance(req, dict):
+                    send({"id": None, "error": "Petición inválida"})
                     continue
-                try:
-                    result = await _dispatch(hub, req["method"], req.get("params") or {})
-                    send({"id": req.get("id"), "result": result})
-                except (ValueError, KeyError, TypeError) as e:
-                    send({"id": req.get("id"), "error": str(e)})
+                # One task per request: a slow request (delete waiting on a turn)
+                # must not block approvals sent on the same connection.
+                task = asyncio.create_task(handle(req))
+                tasks.add(task)
+                task.add_done_callback(tasks.discard)
                 await writer.drain()
         except (ConnectionError, asyncio.IncompleteReadError):
             pass
@@ -60,6 +72,6 @@ async def serve(hub, path):
             hub.unsubscribe(on_event)
             writer.close()
 
-    server = await asyncio.start_unix_server(client, path)
+    server = await asyncio.start_unix_server(client, path, limit=_LINE_LIMIT)
     os.chmod(path, 0o600)
     return server
