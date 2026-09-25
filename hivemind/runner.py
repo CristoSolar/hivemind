@@ -60,17 +60,22 @@ class Turn:
             delta = m.event.get("delta", {})
             if m.event.get("type") == "content_block_delta" and delta.get("type") == "text_delta":
                 self.emit({"type": "delta", "text": delta["text"]})
+            elif (m.event.get("type") == "content_block_start"
+                  and m.event.get("content_block", {}).get("type") in ("thinking", "text")):
+                self.emit({"type": "activity", "kind": "thinking"})
         elif isinstance(m, AssistantMessage):
             for b in m.content:
                 if isinstance(b, TextBlock):
                     self.emit({"type": "text", "text": b.text})
                 elif isinstance(b, ToolUseBlock):
+                    self.emit({"type": "activity", "kind": "tool"})
                     self.emit({"type": "tool", "id": b.id, "name": b.name, "input": b.input})
         elif isinstance(m, UserMessage) and isinstance(m.content, list):
             for b in m.content:
                 if isinstance(b, ToolResultBlock):
                     self.emit({"type": "tool_result", "id": b.tool_use_id,
                                "content": _text_of(b.content), "is_error": bool(b.is_error)})
+                    self.emit({"type": "activity", "kind": "thinking"})
 
     async def run(self):
         out = {"session_id": self.agent["session_id"], "is_error": True, "text": "", "cost": None}

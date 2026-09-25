@@ -1,21 +1,36 @@
-"""Which bee frame to show for an agent status at a given animation tick.
+"""Which bee frame to show for an agent at a given animation tick.
 
 Pure data so the GTK window and the QML bar widget (Panel.qml mirrors it) animate the same way.
-Frames: "up" (wings up), "down" (wings back, the other half of a flap), "low" (up, one pixel lower).
+Each frame is an icon from tools/icons.py; each entry is (frame, opacity).
 """
 TICK_MS = 125
+SLEEP_AFTER = 300  # seconds idle before the bee falls asleep
 
 _BOB = [("up", 1.0)] * 6 + [("low", 1.0)] * 6
 SEQUENCES = {
     # Floats up and down, with a quick double flap every few seconds.
     "idle": _BOB + _BOB + [("down", 1.0), ("up", 1.0), ("down", 1.0), ("up", 1.0)],
     "queued": _BOB,
-    "working": [("up", 1.0), ("down", 1.0)],
-    "waiting": [("up", 1.0)] * 4 + [("up", 0.35)] * 4,
-    "error": [("up", 1.0)],
+    "thinking": [("think-up", 1.0)] * 3 + [("think-down", 1.0)] * 3,  # glasses on, slow beat
+    "tool": [("up", 1.0), ("down", 1.0)],                              # busy, fast beat
+    "waiting": [("wait", 1.0)] * 4 + [("wait", 0.35)] * 4,
+    "sleeping": [("sleep-1", 1.0)] * 8 + [("sleep-2", 1.0)] * 8,
+    "error": [("error", 1.0)],
 }
+SEQUENCES["working"] = SEQUENCES["tool"]
 
 
-def frame_for(status, tick, offset=0):
-    seq = SEQUENCES.get(status, SEQUENCES["error"])
+def animation(status, activity, idle_seconds):
+    """Map an agent's status, what it is doing, and how long it has been idle to a sequence."""
+    if status == "working":
+        return "thinking" if activity == "thinking" else "tool"
+    if status == "idle" and idle_seconds >= SLEEP_AFTER:
+        return "sleeping"
+    return status
+
+
+def frame_for(key, tick, offset=0):
+    seq = SEQUENCES.get(key)
+    if seq is None:
+        return ("up", 1.0)
     return seq[(tick + offset) % len(seq)]

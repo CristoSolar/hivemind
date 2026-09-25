@@ -232,6 +232,36 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         self.hub.approve(self.store.approvals()[0]["id"], "deny")
         await self.hub.drain()
 
+    async def test_activity_and_last_active(self):
+        class BusyTurn(FakeTurn):
+            async def run(self):
+                self.emit({"type": "activity", "kind": "tool"})
+                self.emit({"type": "activity", "kind": "tool"})  # repeated: broadcast once
+                self.emit({"type": "activity", "kind": "thinking"})
+                return await super().run()
+
+        self.hub.turn_factory = BusyTurn
+        a = self.hub.create_agent("Dev", "dev")
+        before = self.hub.snapshot()["last_active"][a["id"]]
+        await self.hub.send(a["id"], "hola")
+        await self.hub.drain()
+        acts = [e["activity"] for e in self.events if e["type"] == "activity" and e["agent"] == a["id"]]
+        self.assertEqual(acts, ["thinking", "tool", "thinking", None])
+        snap = self.hub.snapshot()
+        self.assertIsNone(snap["activities"].get(a["id"]))
+        self.assertGreaterEqual(snap["last_active"][a["id"]], before)
+
+    def test_last_active_restored_from_history(self):
+        a = self.store.create_agent("Old", "dev", "/tmp")
+        m = self.store.add_message(a["id"], a["id"], "text", "hola")
+        hub = Hub(self.store, ROLES, turn_factory=FakeTurn, meminfo=lambda: {"MemTotal": 32 * GB, "MemAvailable": 24 * GB},
+                  notifier=lambda t, b: None, save_config=lambda c: None)
+        self.assertEqual(hub.snapshot()["last_active"][a["id"]], m["ts"])
+        b = self.store.create_agent("New", "dev", "/tmp")
+        hub2 = Hub(self.store, ROLES, turn_factory=FakeTurn, meminfo=lambda: {"MemTotal": 32 * GB, "MemAvailable": 24 * GB},
+                   notifier=lambda t, b: None, save_config=lambda c: None)
+        self.assertEqual(hub2.snapshot()["last_active"][b["id"]], b["created_at"])
+
     def test_expire_stale_approvals(self):
         self.store.add_approval("a1", "Bash", {}, "Bash")
         self.hub.expire_stale_approvals()

@@ -71,8 +71,9 @@ class RunnerTest(unittest.TestCase):
         ]
         out, events, asked, client = self.run_turn(script)
         self.assertEqual(out, {"session_id": "s-1", "is_error": False, "text": "listo", "cost": 0.01})
-        self.assertEqual([e["type"] for e in events], ["delta", "text", "tool", "tool_result"])
-        self.assertEqual(len(events[3]["content"]), 4000)
+        content = [e for e in events if e["type"] != "activity"]
+        self.assertEqual([e["type"] for e in content], ["delta", "text", "tool", "tool_result"])
+        self.assertEqual(len(content[3]["content"]), 4000)
         self.assertEqual(asked, [])  # Read is in the role's allowed tools
         self.assertEqual(client.options.resume, None)
         self.assertTrue(client.options.system_prompt["append"].startswith("rol"))
@@ -159,6 +160,20 @@ class RunnerTest(unittest.TestCase):
         self.assertIn("tablero", append)
         # Existing sessions must pick up prompt changes (role edits, this line) on resume.
         self.assertIs(clients[0].options.system_prompt.get("snapshot"), False)
+
+    def test_activity_follows_thinking_and_tools(self):
+        script = [
+            StreamEvent(uuid="u", session_id="s-1", event={"type": "content_block_start", "index": 0,
+                                                           "content_block": {"type": "thinking"}}),
+            AssistantMessage(content=[ToolUseBlock(id="t1", name="Read", input={"file_path": "/x"})], model="m"),
+            UserMessage(content=[ToolResultBlock(tool_use_id="t1", content="ok", is_error=False)]),
+            StreamEvent(uuid="u", session_id="s-1", event={"type": "content_block_start", "index": 0,
+                                                           "content_block": {"type": "text"}}),
+            result(),
+        ]
+        _, events, _, _ = self.run_turn(script)
+        self.assertEqual([e["kind"] for e in events if e["type"] == "activity"],
+                         ["thinking", "tool", "thinking", "thinking"])
 
 
 if __name__ == "__main__":

@@ -1,8 +1,9 @@
+import time
 import zlib
 
 from gi.repository import GLib, Gtk
 
-from hivemind.ui.bee_frames import TICK_MS, frame_for
+from hivemind.ui.bee_frames import TICK_MS, animation, frame_for
 
 # One shared clock for every bee on screen. The set holds strong references, but only
 # while a bee is mapped: sidebar rows are rebuilt often and nothing in Python keeps them,
@@ -24,11 +25,12 @@ def _step():
 class AnimatedBee(Gtk.Image):
     """Pixel bee that takes its colour from the theme and animates by agent status."""
 
-    def __init__(self, status="idle", seed="", size=32):
+    def __init__(self, status="idle", seed="", size=32, activity=None, last_active=None):
         super().__init__(pixel_size=size)
         self.offset = zlib.crc32(seed.encode()) % 28  # desynchronise bees in the same list
-        self.status, self.shown = None, None
-        self.set_status(status)
+        self.status, self.activity, self.last_active = status, activity, last_active or time.time()
+        self.key, self.shown = None, None
+        self.render()
         self.connect("map", self._on_map)
         self.connect("unmap", lambda *_: _visible.discard(self))
 
@@ -37,17 +39,22 @@ class AnimatedBee(Gtk.Image):
         if _clock["source"] is None:
             _clock["source"] = GLib.timeout_add(TICK_MS, _step)
 
-    def set_status(self, status):
-        if status == self.status:
-            return
-        if self.status:
-            self.remove_css_class(f"hivemind-bee-{self.status}")
-        self.status = status
-        self.add_css_class(f"hivemind-bee-{status}")
+    def set_state(self, status=None, activity=None, last_active=None):
+        self.status = status or self.status
+        self.activity = activity
+        if last_active:
+            self.last_active = last_active
         self.render()
 
     def render(self):
-        frame, opacity = frame_for(self.status, _clock["tick"], self.offset)
+        # The key can change with no event at all: an idle bee falls asleep after SLEEP_AFTER.
+        key = animation(self.status, self.activity, time.time() - self.last_active)
+        if key != self.key:
+            if self.key:
+                self.remove_css_class(f"hivemind-bee-{self.key}")
+            self.key = key
+            self.add_css_class(f"hivemind-bee-{key}")
+        frame, opacity = frame_for(key, _clock["tick"], self.offset)
         if (frame, opacity) != self.shown:
             self.shown = (frame, opacity)
             self.set_from_icon_name(f"hivemind-bee-{frame}-symbolic")

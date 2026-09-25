@@ -19,6 +19,7 @@ class MainWindow(Adw.ApplicationWindow):
         super().__init__(application=app, title="HiveMind", default_width=1100, default_height=720)
         self.agents, self.roles, self.statuses, self.approvals = [], {}, {}, []
         self.routines, self.tasks = [], []
+        self.activities, self.last_active, self.bees = {}, {}, {}
         self.views, self.unread = {}, {}
         self.client = Client(self._on_event, self._on_state)
 
@@ -90,6 +91,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.agents, self.roles = snap["agents"], snap["roles"]
         self.statuses, self.approvals = snap["statuses"], snap["approvals"]
         self.routines, self.tasks = snap.get("routines", []), snap.get("tasks", [])
+        self.activities, self.last_active = snap.get("activities", {}), snap.get("last_active", {})
         self._set_capacity(snap["capacity"])
         self._rebuild_sidebar()
         for thread, view in self.views.items():
@@ -114,7 +116,9 @@ class MainWindow(Adw.ApplicationWindow):
         elif thread == "group":
             avatar = Gtk.Image(icon_name="hivemind-hex-symbolic", pixel_size=32)
         else:
-            avatar = AnimatedBee(self.statuses.get(thread, "idle"), seed=thread)
+            avatar = AnimatedBee(self.statuses.get(thread, "idle"), seed=thread,
+                                 activity=self.activities.get(thread), last_active=self.last_active.get(thread))
+            self.bees[thread] = avatar
         box.append(avatar)
         texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True)
         texts.append(Gtk.Label(label=title, xalign=0, ellipsize=Pango.EllipsizeMode.END))
@@ -133,6 +137,7 @@ class MainWindow(Adw.ApplicationWindow):
         selected = self.sidebar_list.get_selected_row()
         keep = selected.thread if selected else "group"
         self.sidebar_list.remove_all()
+        self.bees = {}
         self.sidebar_list.append(self._row("group", "Grupo", "Todos los agentes"))
         self.sidebar_list.append(self._row("routines", "Rutinas", f"{len(self.routines)} programadas"))
         self.sidebar_list.append(self._row("board", "Tablero", f"{sum(t['status'] != 'done' for t in self.tasks)} abiertas"))
@@ -188,6 +193,15 @@ class MainWindow(Adw.ApplicationWindow):
             for v in self.views.values():
                 v.set_names(self._names())
             self._rebuild_sidebar()
+        elif t == "activity":
+            if ev["activity"]:
+                self.activities[ev["agent"]] = ev["activity"]
+            else:
+                self.activities.pop(ev["agent"], None)
+            if ev.get("last_active"):
+                self.last_active[ev["agent"]] = ev["last_active"]
+            if (bee := self.bees.get(ev["agent"])):  # update in place: no sidebar rebuild per tool call
+                bee.set_state(activity=ev["activity"], last_active=ev.get("last_active"))
         elif t == "status":
             self.statuses[ev["agent"]] = ev["status"]
             self._rebuild_sidebar()

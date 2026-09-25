@@ -32,6 +32,40 @@ class AnimatedBeeWidgetTest(unittest.TestCase):
         App(application_id="com.gogema.BeeWidgetTest").run([])
         self.assertEqual(seen, {("up", 1.0), ("down", 1.0)}, seen)
 
+    def test_long_idle_bee_sleeps_and_thinking_wears_glasses(self):
+        import time
+        import gi
+        gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+        from gi.repository import Adw, Gdk, GLib, Gtk
+        from hivemind.ui import theme
+        from hivemind.ui.bee import AnimatedBee
+        seen = {}
+
+        class App(Adw.Application):
+            def do_activate(self):
+                theme.install(Gdk.Display.get_default())
+                win = Adw.ApplicationWindow(application=self)
+                box = Gtk.Box()
+                self.sleepy = AnimatedBee("idle", seed="a", last_active=time.time() - 400)
+                self.thinker = AnimatedBee("working", seed="b", activity="thinking")
+                box.append(self.sleepy)
+                box.append(self.thinker)
+                win.set_content(box)
+                win.present()
+                GLib.timeout_add(50, self.sample)
+                GLib.timeout_add(2500, self.quit)
+
+            def sample(self):
+                for name, b in (("sleepy", self.sleepy), ("thinker", self.thinker)):
+                    seen.setdefault(name, set()).add(b.shown[0])
+                    seen.setdefault(name + "_css", set()).update(c for c in b.get_css_classes() if c.startswith("hivemind-bee-"))
+                return True
+
+        App(application_id="com.gogema.BeeWidgetTest3").run([])
+        self.assertEqual(seen["sleepy"], {"sleep-1", "sleep-2"})
+        self.assertEqual(seen["sleepy_css"], {"hivemind-bee-sleeping"})
+        self.assertEqual(seen["thinker"], {"think-up", "think-down"})
+
     def test_unmapped_bees_are_released(self):
         import gi
         gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")

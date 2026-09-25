@@ -3,6 +3,7 @@ import json
 import os
 import sqlite3
 import subprocess
+import time
 import sys
 from collections import deque
 
@@ -36,6 +37,8 @@ class Hub:
         self.running = {}           # agent_id -> (Turn, asyncio.Task)
         self.pending = {}           # approval_id -> (agent_id, Future)
         self.statuses = {a["id"]: "idle" for a in store.agents()}
+        self.activities = {}  # agent_id -> "thinking" | "tool" while a turn runs
+        self.last_active = {a["id"]: store.last_activity(a["id"]) or a["created_at"] for a in store.agents()}
         self.hops = 0
         self.per_turn_mb = float(store.get("per_turn_mb", capacity.DEFAULT_PER_TURN_MB))
         self.board = Board(self)
@@ -61,6 +64,17 @@ class Hub:
         self.statuses[agent_id] = status
         self.broadcast({"type": "status", "agent": agent_id, "status": status})
 
+    def _activity(self, agent_id, activity):
+        if activity is None:
+            self.activities.pop(agent_id, None)
+            self.last_active[agent_id] = time.time()
+        elif self.activities.get(agent_id) == activity:
+            return
+        else:
+            self.activities[agent_id] = activity
+        self.broadcast({"type": "activity", "agent": agent_id, "activity": activity,
+                        "last_active": self.last_active.get(agent_id)})
+
     def _post(self, thread, author, kind, content):
         self.broadcast({"type": "message", "message": self.store.add_message(thread, author, kind, content)})
 
@@ -72,6 +86,7 @@ class Hub:
 
     def snapshot(self):
         return {"agents": self.store.agents(), "roles": self.roles, "statuses": self.statuses, "settings": self.settings(),
+                "activities": self.activities, "last_active": self.last_active,
                 "approvals": self.store.approvals(), "capacity": self._capacity(),
                 "routines": self.routines.list(), "tasks": self.board.list()}
 
@@ -101,6 +116,7 @@ class Hub:
         except sqlite3.IntegrityError:
             raise ValueError(f"Ya existe un agente llamado «{name}».") from None
         self.statuses[agent["id"]] = "idle"
+        self.last_active[agent["id"]] = agent["created_at"]
         self.broadcast({"type": "agents", "agents": self.store.agents()})
         return agent
 
@@ -152,6 +168,8 @@ class Hub:
             await asyncio.gather(entry[1], return_exceptions=True)
         self.store.delete_agent(agent_id)
         self.statuses.pop(agent_id, None)
+        self.activities.pop(agent_id, None)
+        self.last_active.pop(agent_id, None)
         self.broadcast({"type": "agents", "agents": self.store.agents()})
 
     # messages ---------------------------------------------------------------
@@ -225,6 +243,7 @@ class Hub:
     async def _run(self, agent, thread, turn, origin=None):
         agent_id = agent["id"]
         self._status(agent_id, "working")
+        self._activity(agent_id, "thinking")
         status = "idle"
         try:
             out = await turn.run()
@@ -246,12 +265,16 @@ class Hub:
         finally:
             self.running.pop(agent_id, None)
             if agent_id in self.statuses:
+                self._activity(agent_id, None)
+            if agent_id in self.statuses:
                 queued = any(q[0] == agent_id for q in self.queue)
                 self._status(agent_id, "queued" if queued else status)
             self._pump()
 
     def _on_event(self, agent_id, thread, ev):
-        if ev["type"] == "delta":
+        if ev["type"] == "activity":
+            self._activity(agent_id, ev["kind"])
+        elif ev["type"] == "delta":
             self.broadcast({"type": "delta", "agent": agent_id, "thread": thread, "text": ev["text"]})
         elif ev["type"] == "text":
             self._post(thread, agent_id, "text", ev["text"])

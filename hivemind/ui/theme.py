@@ -62,7 +62,8 @@ button.destructive-action {{ color: {c['red']}; border-color: {c['red']}; }}
 .hivemind-cards > row {{ border-bottom: 1px solid {c['muted']}; }}
 .hivemind-bee-idle {{ color: {c['muted']}; }}
 .hivemind-bee-queued {{ color: {c['foreground']}; }}
-.hivemind-bee-working {{ color: {c['accent']}; }}
+.hivemind-bee-working, .hivemind-bee-tool, .hivemind-bee-thinking {{ color: {c['accent']}; }}
+.hivemind-bee-sleeping {{ color: {c['muted']}; opacity: 0.8; }}
 .hivemind-bee-waiting {{ color: {c['yellow']}; }}
 .hivemind-bee-error {{ color: {c['red']}; }}
 .hivemind-dot {{ font-size: 10px; text-shadow: 0 0 2px {c['background']}; }}

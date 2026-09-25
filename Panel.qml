@@ -33,21 +33,30 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property color glyphColor: root.beeStatus === "waiting" ? root.yellow
-    : root.beeStatus === "working" ? Color.accent : root.dim
+    : (root.beeStatus === "thinking" || root.beeStatus === "tool") ? Color.accent : root.dim
 
-
-  // Same sequences as hivemind/ui/bee_frames.py: idle floats with a double flap now and then,
-  // working flaps, waiting blinks.
+  // Same sequences as hivemind/ui/bee_frames.py. The bar shows the most important state:
+  // waiting > working (tool beats thinking) > idle; it sleeps only when every agent sleeps.
+  readonly property int sleepAfter: 300
   property int tick: 0
+  property real now: Date.now() / 1000
+  property var activities: ({})
+  property var lastActive: ({})
+  readonly property bool allAsleep: root.agents.length > 0 && root.agents.every(
+    a => (root.statuses[a.id] || "idle") === "idle" && root.now - (root.lastActive[a.id] || 0) >= root.sleepAfter)
   readonly property string beeStatus: !root.connected ? "offline"
     : root.approvals.length > 0 ? "waiting"
-    : root.working > 0 ? "working" : "idle"
+    : root.working > 0 ? (Object.values(root.activities).indexOf("tool") !== -1 ? "tool" : "thinking")
+    : root.allAsleep ? "sleeping" : "idle"
   readonly property var frame: {
-    const bob = Array(6).fill(["up", 1.0]).concat(Array(6).fill(["low", 1.0]))
+    const rep = (f, n, o) => Array(n).fill([f, o === undefined ? 1.0 : o])
+    const bob = rep("up", 6).concat(rep("low", 6))
     const seqs = {
       "idle": bob.concat(bob, [["down", 1.0], ["up", 1.0], ["down", 1.0], ["up", 1.0]]),
-      "working": [["up", 1.0], ["down", 1.0]],
-      "waiting": Array(4).fill(["up", 1.0]).concat(Array(4).fill(["up", 0.35]))
+      "thinking": rep("think-up", 3).concat(rep("think-down", 3)),
+      "tool": [["up", 1.0], ["down", 1.0]],
+      "waiting": rep("wait", 4).concat(rep("wait", 4, 0.35)),
+      "sleeping": rep("sleep-1", 8).concat(rep("sleep-2", 8))
     }
     const seq = seqs[root.beeStatus] || [["up", 1.0]]
     return seq[root.tick % seq.length]
@@ -77,7 +86,10 @@ Panel {
     interval: 125
     running: root.connected
     repeat: true
-    onTriggered: root.tick = (root.tick + 1) % 1000
+    onTriggered: {
+      root.tick = (root.tick + 1) % 1000
+      if (root.tick % 8 === 0) root.now = Date.now() / 1000  // once a second, for falling asleep
+    }
   }
 
   implicitWidth: button.implicitWidth
@@ -101,6 +113,8 @@ Panel {
       root.agents = msg.result.agents
       root.statuses = msg.result.statuses
       root.approvals = msg.result.approvals || []
+      root.activities = msg.result.activities || ({})
+      root.lastActive = msg.result.last_active || ({})
       return
     }
     const ev = msg.event
@@ -108,6 +122,12 @@ Panel {
     if (ev.type === "agents") root.agents = ev.agents
     else if (ev.type === "status") {
       const s = Object.assign({}, root.statuses); s[ev.agent] = ev.status; root.statuses = s
+    }
+    else if (ev.type === "activity") {
+      const a = Object.assign({}, root.activities)
+      if (ev.activity) a[ev.agent] = ev.activity; else delete a[ev.agent]
+      root.activities = a
+      if (ev.last_active) { const l = Object.assign({}, root.lastActive); l[ev.agent] = ev.last_active; root.lastActive = l }
     }
     else if (ev.type === "approval") root.approvals = root.approvals.concat([ev.approval])
     else if (ev.type === "approval_resolved") root.approvals = root.approvals.filter(a => a.id !== ev.id)

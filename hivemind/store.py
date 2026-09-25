@@ -96,6 +96,11 @@ class Store:
                 " values(:thread, :author, :kind, :content, :ts)", m)
         return {"id": cur.lastrowid, **m}
 
+    def last_activity(self, agent_id):
+        row = self.db.execute("select max(ts) from messages where author = ? or thread = ?",
+                              (agent_id, agent_id)).fetchone()
+        return row[0]
+
     def history(self, thread, before=None, limit=50):
         rows = self.db.execute(
             "select * from messages where thread = ? and id < ? order by id desc limit ?",

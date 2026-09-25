@@ -97,6 +97,13 @@ class StoreTest(unittest.TestCase):
         self.s.delete_task(t["id"])
         self.assertIsNone(self.s.task(t["id"]))
         self.assertEqual(self.s.task_log(t["id"]), [])
+    def test_last_activity(self):
+        a = self.s.create_agent("Dev", "dev", "/tmp")
+        self.assertIsNone(self.s.last_activity(a["id"]))
+        self.s.add_message("group", a["id"], "text", "hola grupo")
+        m = self.s.add_message(a["id"], "user", "text", "hola")
+        self.assertEqual(self.s.last_activity(a["id"]), m["ts"])
+
 
 if __name__ == "__main__":
     unittest.main()

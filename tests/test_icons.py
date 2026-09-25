@@ -21,8 +21,13 @@ class IconsTest(unittest.TestCase):
             self.assertNotIn("stroke", text, path.name)  # GTK only recolours fills
 
     def test_frames_differ(self):
-        self.assertNotEqual(icons.bee("up"), icons.bee("down"))
+        self.assertEqual(len({icons.bee(f) for f in icons.FRAMES}), len(icons.FRAMES))
         self.assertIn("translate(0,2)", icons.bee("low"))
+
+    def test_every_animation_frame_has_an_icon(self):
+        from hivemind.ui.bee_frames import SEQUENCES
+        used = {frame for seq in SEQUENCES.values() for frame, _ in seq}
+        self.assertLessEqual(used, set(icons.FRAMES))
 
 
 if __name__ == "__main__":

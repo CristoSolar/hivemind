@@ -62,8 +62,12 @@ class PluginTest(unittest.TestCase):
         from hivemind.ui.bee_frames import TICK_MS
         qml = (ROOT / "Panel.qml").read_text()
         self.assertIn(f"interval: {TICK_MS}", qml)
-        for status in ("idle", "working", "waiting"):
-            self.assertIn(f'"{status}"', qml)
+        from hivemind.ui.bee_frames import SEQUENCES, SLEEP_AFTER
+        self.assertIn(f"readonly property int sleepAfter: {SLEEP_AFTER}", qml)
+        for key in ("idle", "thinking", "tool", "waiting", "sleeping"):
+            self.assertIn(f'"{key}"', qml)
+        for frame in {f for seq in SEQUENCES.values() for f, _ in seq}:
+            self.assertIn(f'"{frame}"', qml)
 
 
 if __name__ == "__main__":
