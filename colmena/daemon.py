@@ -15,9 +15,13 @@ async def _main():
     server = await serve(hub, str(paths.socket_path()))
     print(f"colmena-daemon escuchando en {paths.socket_path()}", flush=True)
     async with server:
+        beat = 0
         while True:
             await asyncio.sleep(5)
             await hub.sample_memory()
+            beat += 1
+            if beat % 6 == 0:  # every 30 s
+                await hub.routines.tick()
 
 
 def main():

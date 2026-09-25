@@ -14,7 +14,7 @@ class FakeTurn:
     """Replies with a fixed text per agent name; optionally asks for approval first."""
     replies, log, gate = {}, [], None
 
-    def __init__(self, agent, role, prompt, emit, ask, model=None, env=None):
+    def __init__(self, agent, role, prompt, emit, ask, model=None, env=None, **kw):
         self.agent, self.prompt, self.emit, self.ask = agent, prompt, emit, ask
         FakeTurn.last_env = env
         self.stopped = False
@@ -231,6 +231,19 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch("subprocess.Popen", side_effect=FileNotFoundError):
             hub.notify("t", "b")  # must not raise
 
+    async def test_turn_gets_board_server(self):
+        seen = {}
+
+        class SpyTurn(FakeTurn):
+            def __init__(self, *a, mcp_servers=None, **kw):
+                seen["servers"] = mcp_servers
+                super().__init__(*a, **kw)
+
+        self.hub.turn_factory = SpyTurn
+        a = self.hub.create_agent("Dev", "dev")
+        await self.hub.send(a["id"], "hola")
+        await self.hub.drain()
+        self.assertEqual(list(seen["servers"]), ["tablero"])
 
 if __name__ == "__main__":
     unittest.main()

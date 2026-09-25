@@ -7,7 +7,9 @@ import sys
 from collections import deque
 
 from colmena import capacity, paths
+from colmena.board import Board
 from colmena.router import CONTEXT_MESSAGES, MAX_HOPS, NAME_RE, mentions
+from colmena.routines import Routines
 from colmena.runner import Turn
 
 
@@ -36,6 +38,8 @@ class Hub:
         self.statuses = {a["id"]: "idle" for a in store.agents()}
         self.hops = 0
         self.per_turn_mb = float(store.get("per_turn_mb", capacity.DEFAULT_PER_TURN_MB))
+        self.board = Board(self)
+        self.routines = Routines(self)
 
     # events -----------------------------------------------------------------
     def subscribe(self, fn):
@@ -64,7 +68,8 @@ class Hub:
 
     def snapshot(self):
         return {"agents": self.store.agents(), "roles": self.roles, "statuses": self.statuses, "settings": self.settings(),
-                "approvals": self.store.approvals(), "capacity": self._capacity()}
+                "approvals": self.store.approvals(), "capacity": self._capacity(),
+                "routines": self.routines.list(), "tasks": self.board.list()}
 
     # agents -----------------------------------------------------------------
     def _check_model(self, model):
@@ -146,15 +151,15 @@ class Hub:
         self.broadcast({"type": "agents", "agents": self.store.agents()})
 
     # messages ---------------------------------------------------------------
-    async def send(self, thread, text):
+    async def send(self, thread, text, origin=None):
         self._post(thread, "user", "text", text)
         if thread == "group":
             self.hops = 0
-            self._route(text, author=None)
+            self._route(text, author=None, origin=origin)
         elif self.store.agent(thread):
-            self._enqueue(thread, thread, text)
+            self._enqueue(thread, thread, text, origin)
 
-    def _route(self, text, author):
+    def _route(self, text, author, origin=None):
         agents = self.store.agents()
         me = next((a["name"] for a in agents if a["id"] == author), None)
         known, unknown = mentions(text, [a["name"] for a in agents], exclude=me)
@@ -173,7 +178,7 @@ class Hub:
         prompt = self._group_prompt()
         for a in agents:
             if a["name"] in known:
-                self._enqueue(a["id"], "group", prompt)
+                self._enqueue(a["id"], "group", prompt, origin)
 
     def _group_prompt(self):
         names = {a["id"]: a["name"] for a in self.store.agents()}
@@ -185,8 +190,8 @@ class Hub:
                 "Tu respuesta se publicará en el grupo.\n\n" + "\n".join(lines))
 
     # queue ------------------------------------------------------------------
-    def _enqueue(self, agent_id, thread, prompt):
-        self.queue.append((agent_id, thread, prompt))
+    def _enqueue(self, agent_id, thread, prompt, origin=None):
+        self.queue.append((agent_id, thread, prompt, origin))
         if agent_id not in self.running:
             self._status(agent_id, "queued")
         self._pump()
@@ -207,12 +212,13 @@ class Hub:
                 agent, self.roles[agent["role"]], item[2],
                 emit=lambda ev, a=agent_id, t=item[1]: self._on_event(a, t, ev),
                 ask=lambda tool, inp, rule, a=agent_id: self._ask(a, tool, inp, rule),
-                model=self.config.get("model"), env=self._env())
-            task = asyncio.get_running_loop().create_task(self._run(agent, item[1], turn))
+                model=self.config.get("model"), env=self._env(),
+                mcp_servers={"tablero": self.board.mcp_server(agent_id)})
+            task = asyncio.get_running_loop().create_task(self._run(agent, item[1], turn, item[3]))
             self.running[agent_id] = (turn, task)
         self.broadcast({"type": "capacity", **self._capacity()})
 
-    async def _run(self, agent, thread, turn):
+    async def _run(self, agent, thread, turn, origin=None):
         agent_id = agent["id"]
         self._status(agent_id, "working")
         status = "idle"
@@ -225,6 +231,8 @@ class Hub:
                 self._post(thread, "system", "system", out["text"] or "El turno terminó con error.")
             elif thread == "group":
                 self._route(out["text"], author=agent_id)
+            if origin and not self.clients:
+                self.notifier(f"Rutina «{origin['routine']}» lista", (out["text"] or "")[:200])
         except asyncio.CancelledError:
             raise
         except Exception as e:  # SDK/CLI failures must not kill the daemon
