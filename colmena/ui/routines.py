@@ -68,6 +68,9 @@ class RoutinesView(Gtk.Box):
             box.append(b)
         return box
 
+    def set_names(self, names):
+        pass  # names are read from the window on every load
+
     def on_event(self, ev):
         if ev["type"] == "routines":
             self.load(ev["routines"])

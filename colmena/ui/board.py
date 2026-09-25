@@ -111,6 +111,9 @@ class BoardView(Gtk.Box):
             dialog.present(self.window)
         self.client.call("task_log", {"task": t["id"]}, show)
 
+    def set_names(self, names):
+        pass  # names are read from the window on every load
+
     def on_event(self, ev):
         if ev["type"] == "tasks":
             self.load(ev["tasks"])
