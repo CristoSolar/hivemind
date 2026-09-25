@@ -15,9 +15,11 @@ def _text_of(content):
 
 
 class Turn:
-    def __init__(self, agent, role, prompt, emit, ask, model=None, client_factory=ClaudeSDKClient):
+    def __init__(self, agent, role, prompt, emit, ask, model=None, env=None, client_factory=ClaudeSDKClient):
         self.agent, self.role, self.prompt = agent, role, prompt
-        self.emit, self.ask, self.model = emit, ask, model
+        self.emit, self.ask = emit, ask
+        self.model = agent.get("model") or model
+        self.env = env
         self.client_factory = client_factory
         self.client = None
         self.stopped = False
@@ -40,6 +42,7 @@ class Turn:
             can_use_tool=self._can_use,
             include_partial_messages=True,
             setting_sources=["user", "project", "local"],
+            env=self.env or {},
         )
 
     def _translate(self, m):

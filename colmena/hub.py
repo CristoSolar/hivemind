@@ -6,7 +6,7 @@ import subprocess
 import sys
 from collections import deque
 
-from colmena import capacity
+from colmena import capacity, paths
 from colmena.router import CONTEXT_MESSAGES, MAX_HOPS, NAME_RE, mentions
 from colmena.runner import Turn
 
@@ -18,11 +18,16 @@ def notify(title, body):
         pass
 
 
+MODELS = (None, "opus", "sonnet", "haiku")  # None = Claude Code's default
+AUTH_MODES = ("subscription", "api_key")
+
+
 class Hub:
     def __init__(self, store, roles, turn_factory=Turn, meminfo=capacity.read_meminfo,
-                 config=None, notifier=notify):
+                 config=None, notifier=notify, save_config=paths.save_config):
         self.store, self.roles = store, roles
         self.turn_factory, self.meminfo, self.notifier = turn_factory, meminfo, notifier
+        self.save_config = save_config
         self.config = config or {}
         self.clients = []
         self.queue = deque()        # (agent_id, thread, prompt)
@@ -58,28 +63,78 @@ class Hub:
         return {"running": len(self.running), "max": self.max_running()}
 
     def snapshot(self):
-        return {"agents": self.store.agents(), "roles": self.roles, "statuses": self.statuses,
+        return {"agents": self.store.agents(), "roles": self.roles, "statuses": self.statuses, "settings": self.settings(),
                 "approvals": self.store.approvals(), "capacity": self._capacity()}
 
     # agents -----------------------------------------------------------------
-    def create_agent(self, name, role, cwd=None):
+    def _check_model(self, model):
+        if model not in MODELS:
+            raise ValueError(f"Modelo desconocido: {model}. Usa opus, sonnet o haiku.")
+
+    def _check_cwd(self, cwd):
+        cwd = os.path.expanduser(cwd)
+        if not os.path.isdir(cwd):
+            raise ValueError(f"La carpeta {cwd} no existe.")
+        return cwd
+
+    def create_agent(self, name, role, cwd=None, model=None):
+        self._check_model(model)
         if not NAME_RE.match(name or ""):
             raise ValueError("El nombre solo puede tener letras, números, guiones y guiones bajos.")
         if role not in self.roles:
             raise ValueError(f"No existe el rol «{role}».")
-        cwd = os.path.expanduser(cwd or self.roles[role]["cwd"])
-        if not os.path.isdir(cwd):
-            raise ValueError(f"La carpeta {cwd} no existe.")
+        cwd = self._check_cwd(cwd or self.roles[role]["cwd"])
         # SQLite's NOCASE only folds ASCII, so check Unicode case here too.
         if any(a["name"].casefold() == name.casefold() for a in self.store.agents()):
             raise ValueError(f"Ya existe un agente llamado «{name}».")
         try:
-            agent = self.store.create_agent(name, role, cwd)
+            agent = self.store.create_agent(name, role, cwd, model)
         except sqlite3.IntegrityError:
             raise ValueError(f"Ya existe un agente llamado «{name}».") from None
         self.statuses[agent["id"]] = "idle"
         self.broadcast({"type": "agents", "agents": self.store.agents()})
         return agent
+
+    def update_agent(self, agent_id, **changes):
+        agent = self.store.agent(agent_id)
+        if agent is None:
+            raise ValueError("Ese agente no existe.")
+        fields = {}
+        if "model" in changes:
+            self._check_model(changes["model"])
+            fields["model"] = changes["model"]
+        if changes.get("cwd"):
+            cwd = self._check_cwd(changes["cwd"])
+            if cwd != agent["cwd"]:
+                # Claude Code keeps sessions per project folder; the old one cannot be resumed.
+                fields.update(cwd=cwd, session_id=None)
+                self._post(agent_id, "system", "system",
+                           f"Carpeta cambiada a {cwd}. La conversación empieza de cero.")
+        self.store.update_agent(agent_id, **fields)
+        self.broadcast({"type": "agents", "agents": self.store.agents()})
+        return self.store.agent(agent_id)
+
+    # settings ---------------------------------------------------------------
+    def settings(self):
+        return {"auth": self.config.get("auth", "subscription"),
+                "has_api_key": bool(self.config.get("api_key"))}
+
+    def set_settings(self, auth, api_key=None):
+        if auth not in AUTH_MODES:
+            raise ValueError("Cuenta inválida.")
+        cfg = {**self.config, "auth": auth}
+        if api_key:
+            cfg["api_key"] = api_key.strip()
+        if auth == "api_key" and not cfg.get("api_key"):
+            raise ValueError("Escribe una API key.")
+        self.save_config(cfg)
+        self.config = cfg
+        return self.settings()
+
+    def _env(self):
+        if self.config.get("auth") == "api_key" and self.config.get("api_key"):
+            return {"ANTHROPIC_API_KEY": self.config["api_key"]}
+        return None
 
     async def delete_agent(self, agent_id):
         await self.stop(agent_id)
@@ -152,7 +207,7 @@ class Hub:
                 agent, self.roles[agent["role"]], item[2],
                 emit=lambda ev, a=agent_id, t=item[1]: self._on_event(a, t, ev),
                 ask=lambda tool, inp, rule, a=agent_id: self._ask(a, tool, inp, rule),
-                model=self.config.get("model"))
+                model=self.config.get("model"), env=self._env())
             task = asyncio.get_running_loop().create_task(self._run(agent, item[1], turn))
             self.running[agent_id] = (turn, task)
         self.broadcast({"type": "capacity", **self._capacity()})

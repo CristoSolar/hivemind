@@ -112,6 +112,21 @@ class RunnerTest(unittest.TestCase):
         self.assertFalse(hasattr(clients[0], "prompt"))
         self.assertFalse(out["is_error"])
 
+    def test_agent_model_and_api_key_env(self):
+        clients = []
+
+        def factory(options):
+            clients.append(FakeClient(options, [result()]))
+            return clients[-1]
+
+        agent = {**AGENT, "model": "haiku"}
+        asyncio.run(Turn(agent, ROLE, "hola", lambda e: None, None, model="opus",
+                         env={"ANTHROPIC_API_KEY": "k"}, client_factory=factory).run())
+        self.assertEqual(clients[0].options.model, "haiku")
+        self.assertEqual(clients[0].options.env, {"ANTHROPIC_API_KEY": "k"})
+        asyncio.run(Turn(AGENT, ROLE, "hola", lambda e: None, None, model="opus", client_factory=factory).run())
+        self.assertEqual(clients[1].options.model, "opus")  # agent without model -> global default
+
 
 if __name__ == "__main__":
     unittest.main()

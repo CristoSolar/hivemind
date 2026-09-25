@@ -1,4 +1,5 @@
 import asyncio
+import os
 import tempfile
 import unittest
 
@@ -13,8 +14,9 @@ class FakeTurn:
     """Replies with a fixed text per agent name; optionally asks for approval first."""
     replies, log, gate = {}, [], None
 
-    def __init__(self, agent, role, prompt, emit, ask, model=None):
+    def __init__(self, agent, role, prompt, emit, ask, model=None, env=None):
         self.agent, self.prompt, self.emit, self.ask = agent, prompt, emit, ask
+        FakeTurn.last_env = env
         self.stopped = False
 
     async def run(self):
@@ -40,9 +42,10 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         self.store = Store(":memory:")
         self.addCleanup(self.store.db.close)
         self.notes = []
+        self.saved = []
         self.hub = Hub(self.store, ROLES, turn_factory=FakeTurn,
                        meminfo=lambda: {"MemTotal": 32 * GB, "MemAvailable": 24 * GB},
-                       notifier=lambda t, b: self.notes.append(t))
+                       notifier=lambda t, b: self.notes.append(t), save_config=self.saved.append)
         self.events = []
         self.hub.subscribe(self.events.append)
 
@@ -172,6 +175,49 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         await asyncio.gather(task, return_exceptions=True)
         self.assertEqual(self.store.approvals(), [])
         self.assertIn({"type": "approval_resolved", "id": ap["id"], "status": "expired"}, self.events)
+
+    def test_model_validation(self):
+        self.assertEqual(self.hub.create_agent("Dev", "dev", model="sonnet")["model"], "sonnet")
+        with self.assertRaises(ValueError):
+            self.hub.create_agent("Otro", "dev", model="gpt-5")
+
+    async def test_update_model_keeps_session(self):
+        a = self.hub.create_agent("Dev", "dev")
+        self.store.set_session(a["id"], "s1")
+        self.hub.update_agent(a["id"], model="haiku")
+        got = self.store.agent(a["id"])
+        self.assertEqual((got["model"], got["session_id"]), ("haiku", "s1"))
+        self.assertEqual(self.events[-1]["type"], "agents")
+
+    async def test_update_cwd_resets_session_with_notice(self):
+        a = self.hub.create_agent("Dev", "dev")
+        self.store.set_session(a["id"], "s1")
+        with tempfile.TemporaryDirectory(dir=os.path.expanduser("~/.cache/tmp")) as d:
+            self.hub.update_agent(a["id"], cwd=d)
+            got = self.store.agent(a["id"])
+            self.assertEqual((got["cwd"], got["session_id"]), (d, None))
+            self.assertEqual(self.store.history(a["id"])[-1]["author"], "system")
+            with self.assertRaises(ValueError):
+                self.hub.update_agent(a["id"], cwd=d + "/no-existe")
+        with self.assertRaises(ValueError):
+            self.hub.update_agent(a["id"], model="gpt-5")
+
+    async def test_api_key_settings_and_turn_env(self):
+        self.assertEqual(self.hub.settings(), {"auth": "subscription", "has_api_key": False})
+        with self.assertRaises(ValueError):
+            self.hub.set_settings("api_key")  # no key saved yet
+        self.hub.set_settings("api_key", "sk-test")
+        self.assertEqual(self.hub.settings(), {"auth": "api_key", "has_api_key": True})
+        self.assertEqual(self.saved[-1]["api_key"], "sk-test")
+        a = self.hub.create_agent("Dev", "dev")
+        await self.hub.send(a["id"], "hola")
+        await self.hub.drain()
+        self.assertEqual(FakeTurn.last_env, {"ANTHROPIC_API_KEY": "sk-test"})
+        self.hub.set_settings("subscription")  # key kept for later, not used
+        self.assertEqual(self.hub.settings(), {"auth": "subscription", "has_api_key": True})
+        await self.hub.send(a["id"], "hola")
+        await self.hub.drain()
+        self.assertIsNone(FakeTurn.last_env)
 
     def test_expire_stale_approvals(self):
         self.store.add_approval("a1", "Bash", {}, "Bash")

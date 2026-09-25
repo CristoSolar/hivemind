@@ -28,6 +28,10 @@ class Store:
         self.db = sqlite3.connect(path)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        columns = {r["name"] for r in self.db.execute("pragma table_info(agents)")}
+        if "model" not in columns:  # databases created before per-agent models
+            with self.db:
+                self.db.execute("alter table agents add column model text")
 
     def _agent(self, row):
         if row is None:
@@ -36,14 +40,22 @@ class Store:
         d["extra_allowed"] = json.loads(d["extra_allowed"])
         return d
 
-    def create_agent(self, name, role, cwd):
-        a = {"id": _new_id(), "name": name, "role": role, "cwd": cwd,
+    def create_agent(self, name, role, cwd, model=None):
+        a = {"id": _new_id(), "name": name, "role": role, "cwd": cwd, "model": model,
              "session_id": None, "created_at": time.time()}
         with self.db:
             self.db.execute(
-                "insert into agents(id, name, role, cwd, session_id, created_at)"
-                " values(:id, :name, :role, :cwd, :session_id, :created_at)", a)
+                "insert into agents(id, name, role, cwd, model, session_id, created_at)"
+                " values(:id, :name, :role, :cwd, :model, :session_id, :created_at)", a)
         return self.agent(a["id"])
+
+    def update_agent(self, id, **fields):
+        unknown = set(fields) - {"model", "cwd", "session_id"}
+        if unknown:
+            raise ValueError(f"Campos desconocidos: {unknown}")
+        with self.db:
+            for key, value in fields.items():
+                self.db.execute(f"update agents set {key} = ? where id = ?", (value, id))
 
     def agents(self):
         return [self._agent(r) for r in self.db.execute("select * from agents order by created_at")]

@@ -32,6 +32,9 @@ class RouterTest(unittest.TestCase):
         self.assertFalse(NAME_RE.match("con espacio"))
         self.assertFalse(NAME_RE.match(""))
 
+    def test_user_mention_is_not_unknown(self):
+        self.assertEqual(mentions("@Usuario ¿apruebas? @Dev", NAMES), (["Dev"], []))
+
 
 if __name__ == "__main__":
     unittest.main()

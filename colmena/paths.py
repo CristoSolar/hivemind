@@ -1,3 +1,4 @@
+import json
 import os
 import tomllib
 from pathlib import Path
@@ -17,6 +18,17 @@ def config_dir():
 
 def socket_path():
     return Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "colmena.sock"
+
+
+def save_config(cfg):
+    """Write config.toml readable only by the user: it may hold an API key."""
+    path = config_dir() / "config.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [f"{k} = {json.dumps(v)}" for k, v in cfg.items() if v is not None]
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    os.chmod(path, 0o600)
 
 
 def load_config():

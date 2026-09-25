@@ -68,6 +68,19 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         self.w.write(b"[1, 2]\n")
         self.assertIn("result", await self.call("hello"))
 
+    async def test_settings_never_return_the_key(self):
+        self.hub.save_config = lambda cfg: None
+        await self.call("set_settings", auth="api_key", api_key="sk-secreto")
+        got = await self.call("get_settings")
+        self.assertEqual(got["result"], {"auth": "api_key", "has_api_key": True})
+        self.assertNotIn("sk-secreto", json.dumps(await self.call("hello")))
+
+    async def test_update_agent(self):
+        a = (await self.call("create_agent", name="Dev", role="dev", model="opus"))["result"]
+        self.assertEqual(a["model"], "opus")
+        got = (await self.call("update_agent", agent=a["id"], model="haiku"))["result"]
+        self.assertEqual(got["model"], "haiku")
+
     async def test_slow_request_does_not_block_the_connection(self):
         release = asyncio.Event()
 

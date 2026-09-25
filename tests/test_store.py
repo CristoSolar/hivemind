@@ -46,6 +46,28 @@ class StoreTest(unittest.TestCase):
         self.s.set("k", "1")
         self.assertEqual(self.s.get("k"), "1")
 
+    def test_model_and_update(self):
+        a = self.s.create_agent("Dev", "dev", "/tmp", model="sonnet")
+        self.assertEqual(a["model"], "sonnet")
+        self.s.update_agent(a["id"], model=None, cwd="/var", session_id=None)
+        got = self.s.agent(a["id"])
+        self.assertEqual((got["model"], got["cwd"]), (None, "/var"))
+
+    def test_migrates_old_database_without_model_column(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory(dir=os.path.expanduser("~/.cache/tmp")) as d:
+            path = d + "/old.db"
+            old = sqlite3.connect(path)
+            old.execute("create table agents(id text primary key, name text not null unique collate nocase,"
+                        " role text not null, cwd text not null, session_id text,"
+                        " extra_allowed text not null default '[]', created_at real not null)")
+            old.execute("insert into agents values('a1', 'Hori', 'marketing', '/tmp', 's1', '[]', 1)")
+            old.commit(); old.close()
+            s = Store(path)
+            self.assertEqual(s.agent("a1")["model"], None)
+            self.assertEqual(s.agent("a1")["session_id"], "s1")
+            s.db.close()
+
 
 if __name__ == "__main__":
     unittest.main()

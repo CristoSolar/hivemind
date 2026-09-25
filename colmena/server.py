@@ -21,7 +21,14 @@ async def _dispatch(hub, method, p):
         hub.approve(p["approval"], p["decision"])
         return True
     if method == "create_agent":
-        return hub.create_agent(p["name"], p["role"], p.get("cwd"))
+        return hub.create_agent(p["name"], p["role"], p.get("cwd"), p.get("model"))
+    if method == "update_agent":
+        changes = {k: p[k] for k in ("model", "cwd") if k in p}
+        return hub.update_agent(p["agent"], **changes)
+    if method == "get_settings":
+        return hub.settings()
+    if method == "set_settings":
+        return hub.set_settings(p["auth"], p.get("api_key"))
     if method == "delete_agent":
         await hub.delete_agent(p["agent"])
         return True
