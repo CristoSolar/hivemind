@@ -12,6 +12,8 @@ la barra de Omarchy te muestra en qué están y te deja aprobar sin abrir nada.
 Todo corre en tu máquina, con tu sesión de Claude Code: no hay servidor externo ni cuenta
 aparte.
 
+![HiveMind: un agente pide aprobación antes de hacer commit](docs/screenshots/02-agente-aprobacion.png)
+
 ---
 
 ## Índice
@@ -45,9 +47,19 @@ aparte.
 | **Se adapta a tu equipo** | Calcula cuántos agentes pueden trabajar a la vez según la RAM libre. Los demás esperan en cola. |
 | **Tu tema** | Toma los colores de tu tema de Omarchy y cambia en vivo cuando cambias de tema. |
 
+### Capturas
+
+| Chat grupal | Tablero |
+|---|---|
+| ![Los agentes se pasan trabajo con @menciones](docs/screenshots/01-grupo.png) | ![Tablero compartido con tareas por columna](docs/screenshots/03-tablero.png) |
+| **Rutinas** | **Nuevo agente** |
+| ![Rutinas programadas con su próxima ejecución](docs/screenshots/04-rutinas.png) | ![Diálogo para crear un agente con rol, modelo y proyecto](docs/screenshots/05-nuevo-agente.png) |
+
 ### Las abejas
 
 Cada agente es una abeja que refleja lo que está haciendo:
+
+![Estados de la abeja: pensando, herramienta, esperando, inactiva, durmiendo y error](docs/screenshots/abejas.png)
 
 | Estado | Cómo se ve |
 |---|---|
