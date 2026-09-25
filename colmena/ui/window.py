@@ -23,7 +23,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.capacity.add_css_class("dim-label")
 
         side_tb = Adw.ToolbarView()
-        side_hb = Adw.HeaderBar()
+        side_hb = Adw.HeaderBar(show_start_title_buttons=False, show_end_title_buttons=False)
         add = Gtk.Button(icon_name="list-add-symbolic", tooltip_text="Nuevo agente")
         add.connect("clicked", self._new_agent)
         side_hb.pack_start(add)
@@ -34,7 +34,7 @@ class MainWindow(Adw.ApplicationWindow):
         side_tb.set_content(side_box)
 
         self.stack = Gtk.Stack()
-        self.content_hb = Adw.HeaderBar()
+        self.content_hb = Adw.HeaderBar(show_start_title_buttons=False, show_end_title_buttons=False)
         self.delete_btn = Gtk.Button(icon_name="user-trash-symbolic", tooltip_text="Borrar agente", visible=False)
         self.delete_btn.connect("clicked", self._delete_agent)
         self.content_hb.pack_end(self.delete_btn)

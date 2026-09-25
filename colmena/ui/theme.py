@@ -2,25 +2,62 @@ import tomllib
 from pathlib import Path
 
 THEME_FILE = Path.home() / ".local/state/omarchy/current/theme/colors.toml"
+SHELL_FILE = Path.home() / ".config/omarchy/shell.toml"
 _FALLBACK = {"mode": "dark", "accent": "#89b4fa", "background": "#1e1e2e", "foreground": "#cdd6f4",
-             "lighter_background": "#313244", "muted": "#585b70", "red": "#f38ba8",
+             "lighter_background": "#313244", "dark_background": "#161622",
+             "darker_background": "#101019", "muted": "#585b70", "red": "#f38ba8",
              "green": "#a6e3a1", "yellow": "#f9e2af"}
 
 
-def css(colors):
+def font_size(path=SHELL_FILE):
+    """Omarchy's UI font size ([font] base-size in shell.toml), 14 if unset."""
+    try:
+        return int(tomllib.loads(path.read_text())["font"]["base-size"])
+    except (OSError, tomllib.TOMLDecodeError, KeyError, TypeError, ValueError):
+        return 14
+
+
+def css(colors, size=14):
     c = {**_FALLBACK, **colors}
     return f"""
-window, .colmena-root {{ background-color: {c['background']}; color: {c['foreground']}; }}
-.colmena-bubble-user {{ background-color: {c['accent']}; color: {c['background']};
-  border-radius: 14px; padding: 8px 12px; }}
-.colmena-bubble-agent {{ background-color: {c['lighter_background']}; color: {c['foreground']};
-  border-radius: 14px; padding: 8px 12px; }}
-.colmena-author {{ color: {c['muted']}; font-size: smaller; }}
+/* Omarchy look: JetBrains Mono, square corners, 2px accent borders, flat. */
+* {{ font-family: "JetBrainsMono Nerd Font", monospace; border-radius: 0; }}
+window, .colmena-root {{ background-color: {c['background']}; color: {c['foreground']};
+  font-size: {size}px; }}
+
+headerbar {{ background: {c['background']}; box-shadow: inset 0 -1px {c['muted']}; min-height: 38px; }}
+headerbar .title {{ font-weight: bold; }}
+
+.navigation-sidebar {{ background: {c['background']}; }}
+.navigation-sidebar > row {{ margin: 0; padding: 2px 4px; border-radius: 0; }}
+.navigation-sidebar > row:hover {{ background: {c['dark_background']}; }}
+.navigation-sidebar > row:selected {{ background: {c['lighter_background']};
+  box-shadow: inset 2px 0 {c['accent']}; }}
+
+.colmena-bubble-user {{ background: transparent; color: {c['foreground']};
+  border: 2px solid {c['accent']}; border-radius: 0; padding: 6px 10px; }}
+.colmena-bubble-agent {{ background: transparent; color: {c['foreground']};
+  border: 2px solid {c['muted']}; border-radius: 0; padding: 6px 10px; }}
+.colmena-author {{ color: {c['accent']}; font-weight: bold; font-size: smaller; }}
 .colmena-system {{ color: {c['muted']}; font-style: italic; }}
-.colmena-code {{ background-color: {c['background']}; border: 1px solid {c['muted']};
-  border-radius: 8px; padding: 6px 8px; font-family: monospace; }}
+.colmena-code {{ background-color: {c['darker_background']}; color: {c['foreground']};
+  border: none; border-radius: 0; padding: 6px 8px; }}
 .colmena-tool {{ color: {c['muted']}; }}
-.colmena-approval {{ border: 2px solid {c['yellow']}; border-radius: 12px; padding: 10px; }}
+.colmena-approval {{ border: 2px solid {c['yellow']}; border-radius: 0; padding: 10px;
+  background: {c['dark_background']}; }}
+
+entry {{ background: {c['dark_background']}; border: 2px solid {c['muted']}; border-radius: 0;
+  box-shadow: none; outline: none; min-height: 34px; }}
+entry:focus-within {{ border-color: {c['accent']}; }}
+
+button {{ border-radius: 0; box-shadow: none; background: transparent;
+  border: 2px solid {c['muted']}; padding: 4px 12px; }}
+button:hover {{ border-color: {c['accent']}; }}
+headerbar button {{ border-color: transparent; }}
+button.suggested-action {{ background: {c['accent']}; color: {c['background']}; border-color: {c['accent']};
+  font-weight: bold; }}
+button.destructive-action {{ color: {c['red']}; border-color: {c['red']}; }}
+
 .colmena-dot-idle {{ color: {c['muted']}; }}
 .colmena-dot-queued {{ color: {c['foreground']}; }}
 .colmena-dot-working {{ color: {c['green']}; }}
@@ -44,7 +81,7 @@ def install(display):
 
     def apply(*_):
         colors = _read()
-        provider.load_from_string(css(colors))
+        provider.load_from_string(css(colors, font_size()))
         dark = colors.get("mode", "dark") != "light"
         Adw.StyleManager.get_default().set_color_scheme(
             Adw.ColorScheme.FORCE_DARK if dark else Adw.ColorScheme.FORCE_LIGHT)
