@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Colmena
+Comment=Agentes de Claude en equipo
+Exec=colmena
+Icon=system-users-symbolic
+Categories=Development;Utility;

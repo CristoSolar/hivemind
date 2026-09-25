@@ -1,0 +1,10 @@
+[Unit]
+Description=Colmena agent daemon
+
+[Service]
+ExecStart=%h/.local/share/colmena/venv/bin/colmena-daemon
+Restart=on-failure
+Environment=PATH=%h/.local/bin:%h/.local/share/mise/shims:/usr/local/bin:/usr/bin
+
+[Install]
+WantedBy=default.target
