@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -34,66 +35,6 @@ Panel {
   readonly property color glyphColor: root.beeStatus === "waiting" ? root.yellow
     : root.beeStatus === "working" ? Color.accent : root.dim
 
-  // BEE_UP_START
-  readonly property var beeUp: [
-    "................",
-    ".....##..##.....",
-    "....#..##..#....",
-    "....#..##..#....",
-    ".....#.##.#.....",
-    "......####...#.#",
-    "....########..#.",
-    "..##.#.#.####.#.",
-    ".###.#.#.##.###.",
-    "####.#.#.######.",
-    ".###.#.#.#####..",
-    "..##.#.#.####...",
-    "....########....",
-    ".....#...#......",
-    "................",
-    "................"
-  ]
-  // BEE_UP_END
-  // BEE_DOWN_START
-  readonly property var beeDown: [
-    "................",
-    "................",
-    "................",
-    "..####..........",
-    ".#....##........",
-    ".#......##...#.#",
-    "..##....####..#.",
-    "....########..#.",
-    "..##.#.#.####.#.",
-    ".###.#.#.##.###.",
-    "####.#.#.######.",
-    ".###.#.#.#####..",
-    "..##.#.#.####...",
-    "....########....",
-    ".....#...#......",
-    "................"
-  ]
-  // BEE_DOWN_END
-  // BEE_LOW_START
-  readonly property var beeLow: [
-    "................",
-    "................",
-    ".....##..##.....",
-    "....#..##..#....",
-    "....#..##..#....",
-    ".....#.##.#.....",
-    "......####...#.#",
-    "....########..#.",
-    "..##.#.#.####.#.",
-    ".###.#.#.##.###.",
-    "####.#.#.######.",
-    ".###.#.#.#####..",
-    "..##.#.#.####...",
-    "....########....",
-    ".....#...#......",
-    "................"
-  ]
-  // BEE_LOW_END
 
   // Same sequences as colmena/ui/bee_frames.py: idle floats with a double flap now and then,
   // working flaps, waiting blinks.
@@ -111,8 +52,7 @@ Panel {
     const seq = seqs[root.beeStatus] || [["up", 1.0]]
     return seq[root.tick % seq.length]
   }
-  readonly property var frameMask: root.frame[0] === "down" ? root.beeDown
-    : root.frame[0] === "low" ? root.beeLow : root.beeUp
+  readonly property string iconsDir: root.pluginDir + "/colmena/ui/icons/"
 
   // Yellow is not one of the shell's colour roles, so read it from the theme ourselves and
   // re-read whenever the accent changes (that is what a theme switch does).
@@ -235,20 +175,24 @@ Panel {
     bar: root.bar
     iconComponent: Component {
       Item {
-        implicitWidth: Style.space(16)
-        implicitHeight: Style.space(16)
-        Grid {
-          anchors.centerIn: parent
-          columns: 16
-          Repeater {
-            model: 256
-            Rectangle {
-              required property int index
-              width: Math.max(1, Math.round(Style.space(1)))
-              height: width
-              color: root.frameMask[Math.floor(index / 16)][index % 16] === "#" ? root.glyphColor : "transparent"
-            }
-          }
+        implicitWidth: Style.space(18)
+        implicitHeight: Style.space(18)
+        // Same SVGs as the window; tinted with the shell colours like the tray tints symbolic icons.
+        Image {
+          id: beeImage
+          anchors.fill: parent
+          fillMode: Image.PreserveAspectFit
+          sourceSize.width: Math.round(width * Screen.devicePixelRatio)
+          sourceSize.height: Math.round(height * Screen.devicePixelRatio)
+          source: "file://" + root.iconsDir + "colmena-bee-" + root.frame[0] + "-symbolic.svg"
+          visible: false
+          layer.enabled: true
+        }
+        MultiEffect {
+          anchors.fill: beeImage
+          source: beeImage
+          colorization: 1.0
+          colorizationColor: root.glyphColor
           opacity: root.frame[1]
         }
         // Daemon unreachable: strike the bee through.

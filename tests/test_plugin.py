@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import tools.pixel_icons as px
+import tools.icons as icons
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -50,13 +50,13 @@ class PluginTest(unittest.TestCase):
         self.assertIn("root.installFailed = exitCode !== 0", qml)
         self.assertIn("visible: root.installing || root.installFailed || (!root.connected && !root.installed)", qml)
 
-    def test_panel_bee_frames_match_icons(self):
+    def test_panel_uses_the_window_icons(self):
         qml = (ROOT / "Panel.qml").read_text()
-        for name, grid in px.FRAMES.items():
-            start = qml.index(f"BEE_{name.upper()}_START")
-            end = qml.index(f"BEE_{name.upper()}_END")
-            rows = re.findall(r'"([#.]{16})"', qml[start:end])
-            self.assertEqual("\n".join(rows), px.mask(grid), name)
+        self.assertIn('"colmena-bee-" + root.frame[0] + "-symbolic.svg"', qml)
+        for name in icons.FRAMES:
+            self.assertTrue((ROOT / "colmena/ui/icons" / f"colmena-bee-{name}-symbolic.svg").is_file())
+        self.assertIn("MultiEffect", qml)
+        self.assertIn("colorizationColor: root.glyphColor", qml)
 
     def test_panel_animation_matches_window(self):
         from colmena.ui.bee_frames import TICK_MS
