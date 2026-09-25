@@ -58,6 +58,8 @@ button.suggested-action {{ background: {c['accent']}; color: {c['background']}; 
   font-weight: bold; }}
 button.destructive-action {{ color: {c['red']}; border-color: {c['red']}; }}
 
+.colmena-card {{ border: 2px solid {c['muted']}; border-radius: 0; padding: 8px; background: {c['dark_background']}; }}
+.colmena-cards > row {{ border-bottom: 1px solid {c['muted']}; }}
 .colmena-dot {{ font-size: 10px; text-shadow: 0 0 2px {c['background']}; }}
 .colmena-dot-idle {{ color: {c['muted']}; }}
 .colmena-dot-queued {{ color: {c['foreground']}; }}

@@ -1,13 +1,14 @@
 import os
-from pathlib import Path
 
 from gi.repository import Adw, Gtk, Pango
 
+from colmena.ui.board import BoardView
 from colmena.ui.chat import ChatView
 from colmena.ui.client import Client
 from colmena.ui.dialogs import agent_dialog, model_label, preferences_dialog
+from colmena.ui.routines import RoutinesView
+from colmena.ui.window_icons import ICONS
 
-ICONS = Path(__file__).parent / "icons"
 
 _STATUS = {"idle": "Inactivo", "queued": "En cola", "working": "Trabajando",
            "waiting": "Esperando aprobación", "error": "Error"}
@@ -17,6 +18,7 @@ class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Colmena", default_width=1100, default_height=720)
         self.agents, self.roles, self.statuses, self.approvals = [], {}, {}, []
+        self.routines, self.tasks = [], []
         self.views, self.unread = {}, {}
         self.client = Client(self._on_event, self._on_state)
 
@@ -87,10 +89,16 @@ class MainWindow(Adw.ApplicationWindow):
             return
         self.agents, self.roles = snap["agents"], snap["roles"]
         self.statuses, self.approvals = snap["statuses"], snap["approvals"]
+        self.routines, self.tasks = snap.get("routines", []), snap.get("tasks", [])
         self._set_capacity(snap["capacity"])
         self._rebuild_sidebar()
-        for view in self.views.values():
-            view.load(self.approvals)
+        for thread, view in self.views.items():
+            if thread == "routines":
+                view.load(self.routines)
+            elif thread == "board":
+                view.load(self.tasks)
+            else:
+                view.load(self.approvals)
 
     def _names(self):
         return {a["id"]: a["name"] for a in self.agents}
@@ -100,12 +108,16 @@ class MainWindow(Adw.ApplicationWindow):
         row = Gtk.ListBoxRow()
         row.thread = thread
         box = Gtk.Box(spacing=10, margin_top=6, margin_bottom=6, margin_start=6, margin_end=6)
-        icon = "colmena.svg" if thread == "group" else "bee.svg"
-        avatar = Gtk.Overlay(child=Gtk.Image(file=str(ICONS / icon), pixel_size=32))
-        dot = Gtk.Label(label="●", halign=Gtk.Align.END, valign=Gtk.Align.END)
-        dot.add_css_class(f"colmena-dot-{self.statuses.get(thread, 'idle')}")
-        dot.add_css_class("colmena-dot")
-        avatar.add_overlay(dot)
+        if thread in ("routines", "board"):
+            image = Gtk.Image(icon_name="alarm-symbolic" if thread == "routines" else "view-grid-symbolic", pixel_size=24)
+        else:
+            image = Gtk.Image(file=str(ICONS / ("colmena.svg" if thread == "group" else "bee.svg")), pixel_size=32)
+        avatar = Gtk.Overlay(child=image)
+        if thread not in ("routines", "board"):
+            dot = Gtk.Label(label="●", halign=Gtk.Align.END, valign=Gtk.Align.END)
+            dot.add_css_class(f"colmena-dot-{self.statuses.get(thread, 'idle')}")
+            dot.add_css_class("colmena-dot")
+            avatar.add_overlay(dot)
         box.append(avatar)
         texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True)
         texts.append(Gtk.Label(label=title, xalign=0, ellipsize=Pango.EllipsizeMode.END))
@@ -125,6 +137,8 @@ class MainWindow(Adw.ApplicationWindow):
         keep = selected.thread if selected else "group"
         self.sidebar_list.remove_all()
         self.sidebar_list.append(self._row("group", "Grupo", "Todos los agentes"))
+        self.sidebar_list.append(self._row("routines", "Rutinas", f"{len(self.routines)} programadas"))
+        self.sidebar_list.append(self._row("board", "Tablero", f"{sum(t['status'] != 'done' for t in self.tasks)} abiertas"))
         for a in self.agents:
             role = self.roles.get(a["role"], {}).get("label", a["role"])
             status = _STATUS[self.statuses.get(a["id"], "idle")]
@@ -140,15 +154,24 @@ class MainWindow(Adw.ApplicationWindow):
             return
         thread = row.thread
         if thread not in self.views:
-            view = ChatView(self.client, thread, self._names())
+            if thread == "routines":
+                view = RoutinesView(self)
+                view.load(self.routines)
+            elif thread == "board":
+                view = BoardView(self)
+                view.load(self.tasks)
+            else:
+                view = ChatView(self.client, thread, self._names())
+                view.load(self.approvals)
             self.views[thread] = view
             self.stack.add_named(view, thread)
-            view.load(self.approvals)
         self.stack.set_visible_child_name(thread)
-        self.views[thread].entry.grab_focus()
-        self.delete_btn.set_visible(thread != "group")
-        self.settings_btn.set_visible(thread != "group")
-        name = "Grupo" if thread == "group" else self._names().get(thread, "")
+        if hasattr(self.views[thread], "entry"):
+            self.views[thread].entry.grab_focus()
+        special = thread in ("group", "routines", "board")
+        self.delete_btn.set_visible(not special)
+        self.settings_btn.set_visible(not special)
+        name = {"group": "Grupo", "routines": "Rutinas", "board": "Tablero"}.get(thread) or self._names().get(thread, "")
         self.content_hb.set_title_widget(Adw.WindowTitle(title=name))
         if self.unread.pop(thread, None):
             self._rebuild_sidebar()
@@ -170,6 +193,12 @@ class MainWindow(Adw.ApplicationWindow):
             self._rebuild_sidebar()
         elif t == "status":
             self.statuses[ev["agent"]] = ev["status"]
+            self._rebuild_sidebar()
+        elif t == "routines":
+            self.routines = ev["routines"]
+            self._rebuild_sidebar()
+        elif t == "tasks":
+            self.tasks = ev["tasks"]
             self._rebuild_sidebar()
         elif t == "capacity":
             self._set_capacity(ev)
