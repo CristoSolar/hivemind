@@ -16,6 +16,16 @@ create table if not exists approvals(
   id text primary key, agent_id text not null, tool text not null, input text not null,
   rule text, status text not null, ts real not null);
 create table if not exists kv(key text primary key, value text not null);
+create table if not exists routines(
+  id text primary key, name text not null, target text not null, prompt text not null,
+  schedule text not null, enabled integer not null default 1, last_run real,
+  next_run real not null, created_at real not null);
+create table if not exists tasks(
+  id text primary key, title text not null, description text not null default '',
+  status text not null default 'todo', assignee text, created_by text not null,
+  created_at real not null, updated_at real not null);
+create table if not exists task_log(
+  id integer primary key, task_id text not null, actor text not null, text text not null, ts real not null);
 """
 
 
@@ -115,3 +125,88 @@ class Store:
     def set(self, key, value):
         with self.db:
             self.db.execute("insert or replace into kv values(?, ?)", (key, value))
+
+    # routines ---------------------------------------------------------------
+    def _routine(self, row):
+        if row is None:
+            return None
+        d = dict(row)
+        d["schedule"] = json.loads(d["schedule"])
+        d["enabled"] = bool(d["enabled"])
+        return d
+
+    def create_routine(self, name, target, prompt, schedule, next_run):
+        r = {"id": _new_id(), "name": name, "target": target, "prompt": prompt,
+             "schedule": json.dumps(schedule), "next_run": next_run, "created_at": time.time()}
+        with self.db:
+            self.db.execute(
+                "insert into routines(id, name, target, prompt, schedule, next_run, created_at)"
+                " values(:id, :name, :target, :prompt, :schedule, :next_run, :created_at)", r)
+        return self.routine(r["id"])
+
+    def routines(self):
+        return [self._routine(r) for r in self.db.execute("select * from routines order by created_at")]
+
+    def routine(self, id):
+        return self._routine(self.db.execute("select * from routines where id = ?", (id,)).fetchone())
+
+    def update_routine(self, id, **fields):
+        allowed = {"name", "target", "prompt", "schedule", "enabled", "last_run", "next_run"}
+        if set(fields) - allowed:
+            raise ValueError(f"Campos desconocidos: {set(fields) - allowed}")
+        if "schedule" in fields:
+            fields["schedule"] = json.dumps(fields["schedule"])
+        if "enabled" in fields:
+            fields["enabled"] = int(bool(fields["enabled"]))
+        with self.db:
+            for key, value in fields.items():
+                self.db.execute(f"update routines set {key} = ? where id = ?", (value, id))
+
+    def delete_routine(self, id):
+        with self.db:
+            self.db.execute("delete from routines where id = ?", (id,))
+
+    # tasks ------------------------------------------------------------------
+    def create_task(self, title, description, assignee, created_by):
+        now = time.time()
+        t = {"id": _new_id(), "title": title, "description": description or "", "assignee": assignee,
+             "created_by": created_by, "created_at": now, "updated_at": now}
+        with self.db:
+            self.db.execute(
+                "insert into tasks(id, title, description, assignee, created_by, created_at, updated_at)"
+                " values(:id, :title, :description, :assignee, :created_by, :created_at, :updated_at)", t)
+        return self.task(t["id"])
+
+    def tasks(self, status=None):
+        if status:
+            rows = self.db.execute("select * from tasks where status = ? order by created_at", (status,))
+        else:
+            rows = self.db.execute("select * from tasks order by created_at")
+        return [dict(r) for r in rows]
+
+    def task(self, id):
+        row = self.db.execute("select * from tasks where id = ?", (id,)).fetchone()
+        return dict(row) if row else None
+
+    def update_task(self, id, **fields):
+        allowed = {"title", "description", "status", "assignee"}
+        if set(fields) - allowed:
+            raise ValueError(f"Campos desconocidos: {set(fields) - allowed}")
+        with self.db:
+            for key, value in fields.items():
+                self.db.execute(f"update tasks set {key} = ? where id = ?", (value, id))
+            self.db.execute("update tasks set updated_at = ? where id = ?", (time.time(), id))
+
+    def delete_task(self, id):
+        with self.db:
+            self.db.execute("delete from tasks where id = ?", (id,))
+            self.db.execute("delete from task_log where task_id = ?", (id,))
+
+    def add_task_log(self, task_id, actor, text):
+        with self.db:
+            self.db.execute("insert into task_log(task_id, actor, text, ts) values(?, ?, ?, ?)",
+                            (task_id, actor, text, time.time()))
+
+    def task_log(self, task_id):
+        rows = self.db.execute("select * from task_log where task_id = ? order by id", (task_id,))
+        return [dict(r) for r in rows]

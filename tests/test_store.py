@@ -68,6 +68,35 @@ class StoreTest(unittest.TestCase):
             self.assertEqual(s.agent("a1")["session_id"], "s1")
             s.db.close()
 
+    def test_routines(self):
+        r = self.s.create_routine("Resumen", "group", "resume", {"daily": "09:00"}, 100.0)
+        self.assertEqual((r["schedule"], r["enabled"], r["last_run"]), ({"daily": "09:00"}, True, None))
+        self.s.update_routine(r["id"], enabled=False, last_run=50.0, next_run=200.0, schedule={"every_hours": 2})
+        got = self.s.routine(r["id"])
+        self.assertEqual((got["enabled"], got["last_run"], got["next_run"], got["schedule"]),
+                         (False, 50.0, 200.0, {"every_hours": 2}))
+        self.assertEqual(len(self.s.routines()), 1)
+        with self.assertRaises(ValueError):
+            self.s.update_routine(r["id"], nope=1)
+        self.s.delete_routine(r["id"])
+        self.assertEqual(self.s.routines(), [])
+
+    def test_tasks_and_log(self):
+        t = self.s.create_task("Landing", "hero nuevo", None, "user")
+        self.assertEqual((t["status"], t["assignee"], t["created_by"]), ("todo", None, "user"))
+        self.s.update_task(t["id"], status="doing", assignee="a1")
+        got = self.s.task(t["id"])
+        self.assertEqual((got["status"], got["assignee"]), ("doing", "a1"))
+        self.assertGreaterEqual(got["updated_at"], got["created_at"])
+        self.assertEqual([x["id"] for x in self.s.tasks("doing")], [t["id"]])
+        self.assertEqual(self.s.tasks("done"), [])
+        self.s.add_task_log(t["id"], "user", "creó la tarea")
+        self.assertEqual([x["text"] for x in self.s.task_log(t["id"])], ["creó la tarea"])
+        with self.assertRaises(ValueError):
+            self.s.update_task(t["id"], created_by="x")
+        self.s.delete_task(t["id"])
+        self.assertIsNone(self.s.task(t["id"]))
+        self.assertEqual(self.s.task_log(t["id"]), [])
 
 if __name__ == "__main__":
     unittest.main()
