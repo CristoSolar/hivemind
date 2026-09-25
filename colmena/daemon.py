@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 from colmena import paths
 from colmena.hub import Hub
@@ -21,7 +22,10 @@ async def _main():
             await hub.sample_memory()
             beat += 1
             if beat % 6 == 0:  # every 30 s
-                await hub.routines.tick()
+                try:
+                    await hub.routines.tick()
+                except Exception as e:  # one bad routine must not stop the daemon
+                    print(f"colmena: rutinas fallaron: {e!r}", file=sys.stderr, flush=True)
 
 
 def main():

@@ -32,6 +32,31 @@ async def _dispatch(hub, method, p):
     if method == "delete_agent":
         await hub.delete_agent(p["agent"])
         return True
+    if method == "list_routines":
+        return hub.routines.list()
+    if method == "create_routine":
+        return hub.routines.create(p["name"], p["target"], p["prompt"], p["schedule"])
+    if method == "update_routine":
+        fields = {k: p[k] for k in ("name", "target", "prompt", "schedule", "enabled") if k in p}
+        return hub.routines.update(p["routine"], **fields)
+    if method == "delete_routine":
+        hub.routines.delete(p["routine"])
+        return True
+    if method == "run_routine_now":
+        await hub.routines.run_now(p["routine"])
+        return True
+    if method == "list_tasks":
+        return hub.board.list(p.get("status"))
+    if method == "create_task":
+        return hub.board.create(p["title"], p.get("description", ""), p.get("assignee"))
+    if method == "update_task":
+        fields = {k: p[k] for k in ("title", "description", "status", "assignee") if k in p}
+        return hub.board.update(p["task"], **fields)
+    if method == "delete_task":
+        hub.board.delete(p["task"])
+        return True
+    if method == "task_log":
+        return hub.board.log(p["task"])
     raise ValueError(f"Método desconocido: {method}")
 
 

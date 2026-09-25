@@ -104,6 +104,24 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
             release.set()
             await self.hub.drain()
 
+    async def test_routine_and_task_methods(self):
+        r = (await self.call("create_routine", name="R", target="group", prompt="hola",
+                             schedule={"daily": "09:00"}))["result"]
+        self.assertEqual(r["schedule"], {"daily": "09:00"})
+        self.assertIn("error", await self.call("create_routine", name="R", target="group", prompt="hola",
+                                               schedule={"daily": "99:00"}))
+        got = (await self.call("update_routine", routine=r["id"], enabled=False))["result"]
+        self.assertFalse(got["enabled"])
+        self.assertEqual(len((await self.call("list_routines"))["result"]), 1)
+        await self.call("delete_routine", routine=r["id"])
+        t = (await self.call("create_task", title="Landing"))["result"]
+        self.assertEqual((await self.call("update_task", task=t["id"], status="done"))["result"]["status"], "done")
+        self.assertEqual(len((await self.call("task_log", task=t["id"]))["result"]), 2)
+        self.assertEqual(len((await self.call("list_tasks", status="done"))["result"]), 1)
+        await self.call("delete_task", task=t["id"])
+        self.assertEqual((await self.call("list_tasks"))["result"], [])
+        self.assertIn("routines", self.events)
+        self.assertIn("tasks", self.events)
 
 if __name__ == "__main__":
     unittest.main()
