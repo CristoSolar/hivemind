@@ -48,9 +48,13 @@ class Store:
         if "model" not in columns:  # databases created before per-agent models
             with self.db:
                 self.db.execute("alter table agents add column model text")
-        with self.db:  # memory used to live on the agent row: it becomes the private chat's session
-            self.db.execute("insert or ignore into sessions(agent_id, thread, session_id)"
-                            " select id, id, session_id from agents where session_id is not null")
+        # Memory used to live on the agent row: it becomes the private chat's session, once.
+        # Running this on every start would resurrect memory the user has since cleared.
+        if self.get("sessions_migrated") is None:
+            with self.db:
+                self.db.execute("insert or ignore into sessions(agent_id, thread, session_id)"
+                                " select id, id, session_id from agents where session_id is not null")
+            self.set("sessions_migrated", "1")
 
     def _agent(self, row):
         if row is None:

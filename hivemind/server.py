@@ -64,7 +64,7 @@ async def _dispatch(hub, method, p, client=None):
     if method == "create_group":
         return hub.create_group(p["name"], p["members"])
     if method == "update_group":
-        return hub.update_group(p["group"], p.get("name"), p.get("members"))
+        return await hub.update_group(p["group"], p.get("name"), p.get("members"))
     if method == "delete_group":
         await hub.delete_group(p["group"])
         return True

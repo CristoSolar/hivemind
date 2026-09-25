@@ -165,11 +165,12 @@ class MainWindow(Adw.ApplicationWindow):
             role = self.roles.get(a["role"], {}).get("label", a["role"])
             status = _STATUS[self.statuses.get(a["id"], "idle")]
             self.sidebar_list.append(self._row(a["id"], a["name"], f"{role} · {model_label(a.get('model'))} · {status}"))
-        i = 0
+        rows, i = {}, 0
         while (row := self.sidebar_list.get_row_at_index(i)):
-            if row.thread == keep:
-                self.sidebar_list.select_row(row)
+            rows[row.thread] = row
             i += 1
+        # The open group or agent may have just been deleted: fall back to Grupo.
+        self.sidebar_list.select_row(rows.get(keep) or rows["group"])
 
     def _select(self, _list, row):
         if row is None:
@@ -201,6 +202,8 @@ class MainWindow(Adw.ApplicationWindow):
             self._rebuild_sidebar()
 
     def _kind(self, thread):
+        if not thread:
+            return None
         if thread in ("routines", "board", "group"):
             return thread
         return "custom" if thread.startswith("g-") else "agent"

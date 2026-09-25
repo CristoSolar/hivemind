@@ -60,6 +60,39 @@ class LayoutTest(unittest.TestCase):
 
         App(application_id="com.gogema.LayoutTest2").run([])
         self.assertEqual(threads, ["group", "g-1", "routines", "board", "a1"])
+    def test_deleting_the_open_group_falls_back_to_grupo(self):
+        import sys, traceback
+        import gi
+        gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+        from gi.repository import Adw, Gdk, GLib
+        from hivemind.ui import theme
+        from hivemind.ui.window import MainWindow
+        out, errors = [], []
+        hook, sys.excepthook = sys.excepthook, lambda *a: errors.append("".join(traceback.format_exception(*a)))
+
+        class App(Adw.Application):
+            def do_activate(self):
+                try:
+                    theme.install(Gdk.Display.get_default())
+                    w = MainWindow(self)
+                    w.present()
+                    w.agents = [{"id": "a1", "name": "Dev", "role": "dev", "model": None}]
+                    w.groups = [{"id": "g-1", "name": "Lanzamiento", "members": ["a1"]}]
+                    w._rebuild_sidebar()
+                    w._select_index(1)
+                    w._on_event({"type": "groups", "groups": []})   # the open group is deleted
+                    out.append((w._current(), w.settings_btn.get_visible(), w.delete_btn.get_visible()))
+                    w._edit_current(); w._clear_current(); w._delete_current()  # must not raise
+                except Exception:
+                    errors.append(traceback.format_exc())
+                finally:
+                    GLib.idle_add(self.quit)
+
+        App(application_id="com.gogema.LayoutTest3").run([])
+        sys.excepthook = hook
+        self.assertEqual(out, [("group", False, False)])
+        self.assertEqual(errors, [])
+
 
 if __name__ == "__main__":
     unittest.main()

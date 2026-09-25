@@ -392,7 +392,7 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
                 self.hub.create_group(*bad)
         g = self.hub.create_group("Campaña", [dev["id"], mkt["id"]])
         self.store.save_session(mkt["id"], g["id"], "s")
-        self.hub.update_group(g["id"], members=[dev["id"]])  # removing a member forgets their group memory
+        await self.hub.update_group(g["id"], members=[dev["id"]])  # removing a member forgets their group memory
         self.assertIsNone(self.store.session(mkt["id"], g["id"]))
         r = self.hub.routines.create("R", g["id"], "hola", {"every_hours": 1})
         await self.hub.delete_group(g["id"])
@@ -404,6 +404,32 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         dev, = self.make("Dev")
         self.hub.create_group("G", [dev["id"]])
         self.assertEqual([g["name"] for g in self.hub.snapshot()["groups"]], ["G"])
+    async def test_stopped_turn_does_not_hand_off_after_clear(self):
+        FakeTurn.gate = asyncio.Event()
+        a, b = self.make("A", "B")
+        FakeTurn.replies = {"A": "@B sigue"}
+        g = self.hub.create_group("AB", [a["id"], b["id"]])
+        await self.hub.send(g["id"], "@A empieza")
+        await asyncio.sleep(0)  # A is mid-turn, waiting on the gate
+        await self.hub.clear_thread(g["id"])
+        FakeTurn.gate = None
+        await self.hub.drain()
+        self.assertEqual(self.store.history(g["id"]), [])
+        self.assertIsNone(self.store.session(b["id"], g["id"]))
+        self.assertEqual([x for x in FakeTurn.log if x == ("B", "start")], [])
+
+    async def test_removed_member_mid_turn_is_stopped_and_forgets(self):
+        FakeTurn.gate = asyncio.Event()
+        a, b = self.make("A", "B")
+        g = self.hub.create_group("AB", [a["id"], b["id"]])
+        await self.hub.send(g["id"], "@B hola")
+        await asyncio.sleep(0)  # B is mid-turn in the group
+        await self.hub.update_group(g["id"], members=[a["id"]])
+        FakeTurn.gate = None
+        await self.hub.drain()
+        self.assertIsNone(self.store.session(b["id"], g["id"]))
+        self.assertEqual([m for m in self.store.history(g["id"]) if m["author"] == b["id"]], [])
+
 
 if __name__ == "__main__":
     unittest.main()

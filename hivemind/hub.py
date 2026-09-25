@@ -118,7 +118,7 @@ class Hub:
         self.broadcast({"type": "groups", "groups": self.store.groups()})
         return self.store.group(group["id"])
 
-    def update_group(self, group_id, name=None, members=None):
+    async def update_group(self, group_id, name=None, members=None):
         group = self.store.group(group_id)
         if group is None:
             raise ValueError("Ese grupo no existe.")
@@ -128,8 +128,10 @@ class Hub:
             self.store.rename_group(group_id, name.strip())
         if members is not None:
             members = self._check_members(members)
-            for gone in set(group["members"]) - set(members):
-                self.store.delete_sessions(agent_id=gone, thread=group_id)  # they forget this group
+            gone = set(group["members"]) - set(members)
+            await self._stop_in_thread(group_id, agents=gone)  # a leaving member stops talking there first
+            for agent_id in gone:
+                self.store.delete_sessions(agent_id=agent_id, thread=group_id)  # they forget this group
             self.store.set_members(group_id, members)
         self.broadcast({"type": "groups", "groups": self.store.groups()})
         return self.store.group(group_id)
@@ -142,6 +144,29 @@ class Hub:
         self.routines.pause_target(group_id)
         self.broadcast({"type": "groups", "groups": self.store.groups()})
 
+    async def _stop_in_thread(self, thread, agents=None):
+        """Drop queued work for `thread` and stop turns running in it, until none is left.
+
+        Loops because a turn that finishes as it is stopped can still enqueue a hand-off.
+        `agents` limits this to some agents (members leaving a group)."""
+        def mine(agent_id):
+            return agents is None or agent_id in agents
+
+        while True:
+            self.queue = deque(q for q in self.queue if not (q[1] == thread and mine(q[0])))
+            stopping = []
+            for agent_id, (turn, task, running_thread) in list(self.running.items()):
+                if running_thread == thread and mine(agent_id):
+                    for ap_id, (a, _) in list(self.pending.items()):
+                        if a == agent_id:
+                            self.approve(ap_id, "deny")
+                    turn.discard = True  # whatever it still says belongs to a conversation being wiped
+                    await turn.stop()
+                    stopping.append(task)
+            if not stopping:
+                return
+            await asyncio.gather(*stopping, return_exceptions=True)
+
     async def clear_thread(self, thread):
         if self.is_group(thread):
             members = [a["id"] for a in self.members(thread)]
@@ -150,17 +175,7 @@ class Hub:
         else:
             raise ValueError("Esa conversación no existe.")
         # Stop what is running in this conversation first, so nothing is posted after the wipe.
-        self.queue = deque(q for q in self.queue if q[1] != thread)
-        stopping = []
-        for agent_id, (turn, task, running_thread) in list(self.running.items()):
-            if running_thread == thread:
-                for ap_id, (a, _) in list(self.pending.items()):
-                    if a == agent_id:
-                        self.approve(ap_id, "deny")
-                await turn.stop()
-                stopping.append(task)
-        if stopping:
-            await asyncio.gather(*stopping, return_exceptions=True)
+        await self._stop_in_thread(thread)
         self.store.delete_messages(thread)
         for agent_id in members:
             self.store.delete_sessions(agent_id=agent_id, thread=thread)
@@ -340,13 +355,13 @@ class Hub:
         status = "idle"
         try:
             out = await turn.run()
-            if out["session_id"] and self.store.agent(agent_id):
+            if out["session_id"] and self.store.agent(agent_id) and not getattr(turn, "discard", False):
                 self.store.save_session(agent_id, thread, out["session_id"])
             if out["is_error"]:
                 status = "error"
                 self._post(thread, "system", "system", out["text"] or "El turno terminó con error.")
-            elif self.is_group(thread):
-                self._route(thread, out["text"], author=agent_id)
+            elif self.is_group(thread) and not getattr(turn, "stopped", False) and not getattr(turn, "discard", False):
+                self._route(thread, out["text"], author=agent_id)  # a stopped turn hands nothing off
             if origin and not self.has_window():
                 self.notifier(f"Rutina «{origin['routine']}» lista", (out["text"] or "")[:200])
         except asyncio.CancelledError:
@@ -365,6 +380,9 @@ class Hub:
             self._pump()
 
     def _on_event(self, agent_id, thread, ev):
+        entry = self.running.get(agent_id)
+        if entry and getattr(entry[0], "discard", False) and ev["type"] != "activity":
+            return
         if ev["type"] == "activity":
             self._activity(agent_id, ev["kind"])
         elif ev["type"] == "delta":

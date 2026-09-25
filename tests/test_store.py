@@ -147,6 +147,7 @@ class StoreTest(unittest.TestCase):
             a = old.create_agent("Dev", "dev", "/tmp")
             old.set_session(a["id"], "legacy")  # pre-sessions memory lived on the agent row
             old.db.execute("delete from sessions")
+            old.db.execute("delete from kv")    # a database from before the sessions table
             old.db.commit()
             old.db.close()
             for _ in range(2):  # idempotent
@@ -155,6 +156,24 @@ class StoreTest(unittest.TestCase):
                 self.assertIsNone(s.session(a["id"], "group"))
                 self.assertEqual(s.db.execute("select count(*) from sessions").fetchone()[0], 1)
                 s.db.close()
+    def test_cleared_memory_stays_cleared_after_restart(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory(dir=os.path.expanduser("~/.cache/tmp")) as d:
+            path = d + "/old.db"
+            old = Store(path)
+            a = old.create_agent("Dev", "dev", "/tmp")
+            old.set_session(a["id"], "legacy")
+            old.db.execute("delete from sessions")
+            old.db.execute("delete from kv")
+            old.db.commit()
+            old.db.close()
+            s = Store(path)                      # upgrade: legacy memory becomes the private session
+            s.delete_sessions(agent_id=a["id"])  # the user picks «Nueva conversación»
+            s.db.close()
+            s = Store(path)                      # daemon restart
+            self.assertIsNone(s.session(a["id"], a["id"]))
+            s.db.close()
+
 
 if __name__ == "__main__":
     unittest.main()
