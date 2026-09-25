@@ -7,6 +7,7 @@ from colmena.store import Store
 class StoreTest(unittest.TestCase):
     def setUp(self):
         self.s = Store(":memory:")
+        self.addCleanup(self.s.db.close)
 
     def test_agent_round_trip(self):
         a = self.s.create_agent("Dev", "dev", "/tmp")
