@@ -106,7 +106,9 @@ class Hub:
         if unknown:
             self._post("group", "system", "system", "No hay agentes llamados: " + ", ".join("@" + u for u in unknown))
         if not known:
-            return
+            if author is not None or unknown:
+                return
+            known = [a["name"] for a in agents]  # user wrote to the group with no @: everyone answers
         if author is not None:
             if self.hops >= MAX_HOPS:
                 self._post("group", "system", "system",

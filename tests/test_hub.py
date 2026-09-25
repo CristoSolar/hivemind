@@ -77,11 +77,19 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         await self.hub.drain()
         self.assertEqual(FakeTurn.log, [("Dev", "start"), ("Dev", "end"), ("Dev", "start"), ("Dev", "end")])
 
-    async def test_group_without_mention_runs_nobody(self):
+    async def test_group_without_mention_runs_everyone(self):
         self.hub.create_agent("Dev", "dev")
+        self.hub.create_agent("Mkt", "dev")
         await self.hub.send("group", "hola a todos")
         await self.hub.drain()
-        self.assertEqual(FakeTurn.log, [])
+        self.assertEqual(sorted(x[0] for x in FakeTurn.log if x[1] == "start"), ["Dev", "Mkt"])
+
+    async def test_agent_reply_without_mention_routes_nobody(self):
+        self.hub.create_agent("Dev", "dev")
+        self.hub.create_agent("Mkt", "dev")
+        await self.hub.send("group", "@Dev hola")
+        await self.hub.drain()
+        self.assertEqual([x for x in FakeTurn.log if x[1] == "start"], [("Dev", "start")])
 
     async def test_group_handoff_and_context(self):
         self.hub.create_agent("Dev", "dev")

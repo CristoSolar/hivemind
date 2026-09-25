@@ -123,7 +123,8 @@ used for `@Name` (case-insensitive).
 
 - One shared thread. Members = all agents.
 - User message in the group: every `@Name` mentioned gets a turn. No mention
-  = message is only stored, no agent runs.
+  = every agent gets a turn (changed 2026-09-24 at the user's request). Agent replies
+  without a mention route nobody.
 - The routed turn's prompt contains the triggering message plus the last 20
   group messages as context, labelled by author.
 - An agent's reply is posted to the group; each `@Name` in it (other than

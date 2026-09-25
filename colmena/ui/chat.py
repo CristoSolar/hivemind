@@ -41,7 +41,7 @@ class ChatView(Gtk.Box):
 
         bar = Gtk.Box(spacing=6, margin_top=6, margin_bottom=10, margin_start=16, margin_end=16)
         self.entry = Gtk.Entry(hexpand=True, placeholder_text=(
-            "Escribe… usa @Nombre para llamar a un agente" if thread == "group" else "Escribe una tarea…"))
+            "Escribe a todos… o usa @Nombre para uno solo" if thread == "group" else "Escribe una tarea…"))
         self.entry.connect("activate", self._send)
         bar.append(self.entry)
         if thread != "group":
