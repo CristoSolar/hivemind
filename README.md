@@ -38,7 +38,9 @@ aparte.
 | | |
 |---|---|
 | **Agentes con rol** | Crea agentes como «Dev», «Marketing» o «Sistema». Cada uno tiene su chat, su modelo (Opus, Sonnet o Haiku) y su carpeta de trabajo. |
-| **Chat grupal** | Escribe a todos a la vez, o menciona a uno con `@Nombre`. Los agentes también se mencionan entre ellos para pasarse trabajo. |
+| **Chat grupal y grupos** | «Grupo» incluye a todos. Además creas grupos con los agentes que elijas (p. ej. «Lanzamiento» con Dev y Marketing). Menciona a uno con `@Nombre` o escribe a todos los integrantes; los agentes se mencionan entre ellos para pasarse trabajo. |
+| **Memoria por conversación** | Cada agente recuerda cada conversación por separado, así los grupos no se mezclan. Cuando habla en un grupo, recibe lo último de su chat privado contigo: si le preguntas «¿cómo va el desarrollo?», responde con lo que trabajaron. |
+| **Limpiar** | «Limpiar» borra un grupo y hace que sus integrantes olviden ese tema (sus chats privados no cambian). «Nueva conversación» hace lo mismo con el chat privado de un agente. |
 | **Aprobaciones** | Lo que un agente no tiene permitido de antemano aparece como tarjeta: **Permitir**, **Denegar** o **Permitir siempre** (la tarjeta muestra exactamente qué regla se guardaría). |
 | **En segundo plano** | Un servicio de usuario de systemd mantiene a los agentes trabajando con la ventana cerrada. Si algo necesita tu aprobación, te llega una notificación. |
 | **Rutinas** | Tareas programadas: «cada 3 horas», «todos los días 09:00» o «lunes y jueves 18:30». Si el equipo estaba apagado a la hora, la rutina corre una vez al volver. |
@@ -179,10 +181,18 @@ cada agente, en el orden de la barra lateral.
   - Todo lo demás se detiene en una tarjeta hasta que respondas. «Permitir siempre» guarda
     una regla para ese agente, atada al comando o al archivo exacto.
   - Las reglas con comodín nunca cubren comandos encadenados con `;`, `&&`, `|` o `$( )`.
-- **El grupo.**
-  - Un mensaje tuyo sin `@` le llega a todos los agentes; con `@Nombre`, solo a esos.
-  - Cuando un agente menciona a otro en su respuesta, ese otro toma el turno, con los últimos
-    20 mensajes del grupo como contexto.
+- **La memoria.**
+  - Cada agente tiene una sesión de Claude Code por conversación: una para su chat privado y
+    una por cada grupo en el que participa.
+  - Cuando habla en un grupo, recibe además sus últimos 10 mensajes privados contigo.
+  - Limpiar una conversación borra sus mensajes y esas sesiones, y detiene antes lo que
+    estuviera corriendo en ella.
+- **Los grupos.**
+  - «Grupo» incluye a todos los agentes; los grupos que creas, solo a sus integrantes.
+  - Un mensaje tuyo sin `@` le llega a todos los integrantes; con `@Nombre`, solo a esos. Si
+    mencionas a alguien que no es integrante, aparece un aviso.
+    - Cuando un agente menciona a otro en su respuesta, ese otro toma el turno, con los últimos
+    20 mensajes de ese grupo como contexto.
   - Para que no conversen en bucle, hay un tope de 5 pases seguidos entre agentes, que se
     reinicia cuando escribes tú.
 - **El tablero.** Cada agente recibe cuatro herramientas propias: `tablero_listar`,
@@ -203,6 +213,22 @@ cada agente, en el orden de la barra lateral.
   empieza de cero, porque Claude Code guarda las sesiones por carpeta.
 - **Detener (■):** interrumpe la tarea en curso y descarta lo que tenía en cola.
 - **Borrar (papelera):** lo saca de la lista. Su historial queda guardado.
+
+### Grupos
+
+- **Crear:** **+ → Nuevo grupo**. Le das un nombre y marcas a los integrantes.
+- **Editar (⚙):** cambia el nombre o los integrantes. Quien sale del grupo olvida esa
+  conversación.
+- **Borrar (papelera):** borra el grupo y sus mensajes. Las rutinas que iban a ese grupo se
+  pausan.
+
+### Limpiar y empezar de cero
+
+- **Limpiar (en un grupo):** borra los mensajes y los integrantes olvidan esa conversación.
+  Sus chats privados no cambian.
+- **Nueva conversación (en un agente):** borra su chat privado y su memoria privada. Sigue en
+  sus grupos.
+- Útil cuando cambias de proyecto o reemplazas agentes: así nadie arrastra el tema anterior.
 
 ### Aprobaciones
 

@@ -63,12 +63,14 @@ are not a GUI window, so notifications keep reaching the user.
 | Method | Params |
 |---|---|
 | `hello` | `role?` — returns a snapshot: agents, roles, statuses, activities, last_active, approvals, capacity, routines, tasks, settings (never the API key) |
-| `history` | `thread` (`"group"` or agent id), `before?`, `limit?` |
+| `history` | `thread` (`"group"`, a group id or an agent id), `before?`, `limit?` |
 | `send` | `thread`, `text` |
 | `stop` / `delete_agent` | `agent` |
 | `create_agent` | `name` (`[\w-]+`, unique ignoring case), `role`, `cwd?`, `model?` (`opus`/`sonnet`/`haiku`/null) |
 | `update_agent` | `agent`, `model?`, `cwd?` (changing `cwd` resets the session) |
 | `approve` | `approval`, `decision` (`allow`/`deny`/`always`) |
+| `list_groups` / `create_group` / `update_group` / `delete_group` | `group`, `name`, `members` (agent ids) — group ids look like `g-1a2b3c4d`; `"group"` is the built-in group with every agent |
+| `clear_thread` | `thread` — deletes that conversation's messages and its members' session for it; stops turns running in it first |
 | `get_settings` / `set_settings` | `auth` (`subscription`/`api_key`), `api_key?` |
 | `list_routines` / `create_routine` / `update_routine` / `delete_routine` / `run_routine_now` | `routine`, `name`, `target`, `prompt`, `schedule`, `enabled` |
 | `list_tasks` / `create_task` / `update_task` / `delete_task` / `task_log` | `task`, `title`, `description`, `status` (`todo`/`doing`/`done`), `assignee` |
@@ -120,7 +122,8 @@ python -m venv --system-site-packages .venv        # system site-packages provid
 
 ```
 hivemind/store.py      SQLite: agents, messages, approvals, routines, tasks, task_log, kv
-hivemind/hub.py        orchestration: queue, RAM capacity, approvals, @mention routing, activity
+hivemind/hub.py        orchestration: queue, RAM capacity, approvals, groups + @mention routing, per-conversation
+                       sessions (the private chat is bridged into group turns), clearing, activity
 hivemind/runner.py     one agent turn over claude-agent-sdk → plain event dicts
 hivemind/router.py     @mention parsing (MAX_HOPS = 5 agent-to-agent hops)
 hivemind/roles.py      role TOML loading, permission rule matching
