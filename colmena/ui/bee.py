@@ -1,20 +1,23 @@
-import weakref
 import zlib
 
 from gi.repository import GLib, Gtk
 
 from colmena.ui.bee_frames import TICK_MS, frame_for
 
-# One shared clock for every bee on screen; hidden bees skip the redraw.
-_bees = weakref.WeakSet()
+# One shared clock for every bee on screen. The set holds strong references, but only
+# while a bee is mapped: sidebar rows are rebuilt often and nothing in Python keeps them,
+# so a weak registry lost them and the animation never ran.
+_visible = set()
 _clock = {"tick": 0, "source": None}
 
 
 def _step():
     _clock["tick"] += 1
-    for bee in list(_bees):
-        if bee.get_mapped():
-            bee.render()
+    for bee in list(_visible):
+        bee.render()
+    if not _visible:
+        _clock["source"] = None
+        return False  # nothing on screen: stop until a bee is mapped again
     return True
 
 
@@ -26,7 +29,11 @@ class AnimatedBee(Gtk.Image):
         self.offset = zlib.crc32(seed.encode()) % 28  # desynchronise bees in the same list
         self.status, self.shown = None, None
         self.set_status(status)
-        _bees.add(self)
+        self.connect("map", self._on_map)
+        self.connect("unmap", lambda *_: _visible.discard(self))
+
+    def _on_map(self, *_):
+        _visible.add(self)
         if _clock["source"] is None:
             _clock["source"] = GLib.timeout_add(TICK_MS, _step)
 
