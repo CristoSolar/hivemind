@@ -7,7 +7,7 @@ from colmena.ui.chat import ChatView
 from colmena.ui.client import Client
 from colmena.ui.dialogs import agent_dialog, model_label, preferences_dialog
 from colmena.ui.routines import RoutinesView
-from colmena.ui.window_icons import ICONS
+from colmena.ui.bee import AnimatedBee
 
 
 _STATUS = {"idle": "Inactivo", "queued": "En cola", "working": "Trabajando",
@@ -109,15 +109,12 @@ class MainWindow(Adw.ApplicationWindow):
         row.thread = thread
         box = Gtk.Box(spacing=10, margin_top=6, margin_bottom=6, margin_start=6, margin_end=6)
         if thread in ("routines", "board"):
-            image = Gtk.Image(icon_name="alarm-symbolic" if thread == "routines" else "view-grid-symbolic", pixel_size=24)
+            avatar = Gtk.Image(icon_name="alarm-symbolic" if thread == "routines" else "view-grid-symbolic",
+                               pixel_size=24, width_request=32)
+        elif thread == "group":
+            avatar = Gtk.Image(icon_name="colmena-hex-symbolic", pixel_size=32)
         else:
-            image = Gtk.Image(file=str(ICONS / ("colmena.svg" if thread == "group" else "bee.svg")), pixel_size=32)
-        avatar = Gtk.Overlay(child=image)
-        if thread not in ("routines", "board"):
-            dot = Gtk.Label(label="●", halign=Gtk.Align.END, valign=Gtk.Align.END)
-            dot.add_css_class(f"colmena-dot-{self.statuses.get(thread, 'idle')}")
-            dot.add_css_class("colmena-dot")
-            avatar.add_overlay(dot)
+            avatar = AnimatedBee(self.statuses.get(thread, "idle"), seed=thread)
         box.append(avatar)
         texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True)
         texts.append(Gtk.Label(label=title, xalign=0, ellipsize=Pango.EllipsizeMode.END))

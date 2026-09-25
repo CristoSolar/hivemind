@@ -31,30 +31,114 @@ Panel {
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color dim: Qt.darker(foreground, 1.55)
-  readonly property color glyphColor: !root.connected ? root.dim
-    : root.approvals.length > 0 ? Color.urgent
-    : root.working > 0 ? Color.accent : root.dim
+  readonly property color glyphColor: root.beeStatus === "waiting" ? root.yellow
+    : root.beeStatus === "working" ? Color.accent : root.dim
 
-  // BEE_MASK_START
-  readonly property var beeMask: [
-    "...#........#...",
-    "....#......#....",
-    ".....######.....",
+  // BEE_UP_START
+  readonly property var beeUp: [
+    "................",
+    ".....##..##.....",
+    "....#..##..#....",
+    "....#..##..#....",
+    ".....#.##.#.....",
+    "......####...#.#",
+    "....########..#.",
+    "..##.#.#.####.#.",
+    ".###.#.#.##.###.",
+    "####.#.#.######.",
+    ".###.#.#.#####..",
+    "..##.#.#.####...",
     "....########....",
-    "...##########...",
-    "..############..",
-    ".###.#####.####.",
-    ".##############.",
-    ".##############.",
-    ".##############.",
-    "..############..",
-    "...##########...",
-    "....########....",
-    "....########....",
-    ".....######.....",
-    ".......##......."
+    ".....#...#......",
+    "................",
+    "................"
   ]
-  // BEE_MASK_END
+  // BEE_UP_END
+  // BEE_DOWN_START
+  readonly property var beeDown: [
+    "................",
+    "................",
+    "................",
+    "..####..........",
+    ".#....##........",
+    ".#......##...#.#",
+    "..##....####..#.",
+    "....########..#.",
+    "..##.#.#.####.#.",
+    ".###.#.#.##.###.",
+    "####.#.#.######.",
+    ".###.#.#.#####..",
+    "..##.#.#.####...",
+    "....########....",
+    ".....#...#......",
+    "................"
+  ]
+  // BEE_DOWN_END
+  // BEE_LOW_START
+  readonly property var beeLow: [
+    "................",
+    "................",
+    ".....##..##.....",
+    "....#..##..#....",
+    "....#..##..#....",
+    ".....#.##.#.....",
+    "......####...#.#",
+    "....########..#.",
+    "..##.#.#.####.#.",
+    ".###.#.#.##.###.",
+    "####.#.#.######.",
+    ".###.#.#.#####..",
+    "..##.#.#.####...",
+    "....########....",
+    ".....#...#......",
+    "................"
+  ]
+  // BEE_LOW_END
+
+  // Same sequences as colmena/ui/bee_frames.py: idle floats with a double flap now and then,
+  // working flaps, waiting blinks.
+  property int tick: 0
+  readonly property string beeStatus: !root.connected ? "offline"
+    : root.approvals.length > 0 ? "waiting"
+    : root.working > 0 ? "working" : "idle"
+  readonly property var frame: {
+    const bob = Array(6).fill(["up", 1.0]).concat(Array(6).fill(["low", 1.0]))
+    const seqs = {
+      "idle": bob.concat(bob, [["down", 1.0], ["up", 1.0], ["down", 1.0], ["up", 1.0]]),
+      "working": [["up", 1.0], ["down", 1.0]],
+      "waiting": Array(4).fill(["up", 1.0]).concat(Array(4).fill(["up", 0.35]))
+    }
+    const seq = seqs[root.beeStatus] || [["up", 1.0]]
+    return seq[root.tick % seq.length]
+  }
+  readonly property var frameMask: root.frame[0] === "down" ? root.beeDown
+    : root.frame[0] === "low" ? root.beeLow : root.beeUp
+
+  // Yellow is not one of the shell's colour roles, so read it from the theme ourselves and
+  // re-read whenever the accent changes (that is what a theme switch does).
+  property color yellow: Color.urgent
+  FileView {
+    id: themeColors
+    path: Color.currentThemePath + "/colors.toml"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      const m = text().match(/^\s*yellow\s*=\s*["']?(#[0-9A-Fa-f]{6})/m)
+      root.yellow = m ? m[1] : Color.urgent
+    }
+  }
+  Connections {
+    target: Color
+    function onAccentChanged() { themeColors.reload() }
+  }
+
+  Timer {
+    interval: 125
+    running: root.connected
+    repeat: true
+    onTriggered: root.tick = (root.tick + 1) % 1000
+  }
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -162,9 +246,19 @@ Panel {
               required property int index
               width: Math.max(1, Math.round(Style.space(1)))
               height: width
-              color: root.beeMask[Math.floor(index / 16)][index % 16] === "#" ? root.glyphColor : "transparent"
+              color: root.frameMask[Math.floor(index / 16)][index % 16] === "#" ? root.glyphColor : "transparent"
             }
           }
+          opacity: root.frame[1]
+        }
+        // Daemon unreachable: strike the bee through.
+        Rectangle {
+          visible: !root.connected
+          anchors.centerIn: parent
+          width: parent.width * 1.2
+          height: Math.max(1, Math.round(Style.space(1.5)))
+          rotation: -35
+          color: root.dim
         }
         Text {
           anchors.right: parent.right
@@ -317,7 +411,7 @@ Panel {
               spacing: Style.spacing.sm
               Text {
                 text: "●"
-                color: ({ working: Color.accent, waiting: Color.urgent, error: Color.urgent })[root.statuses[modelData.id]] || root.dim
+                color: ({ working: Color.accent, waiting: root.yellow, error: Color.urgent })[root.statuses[modelData.id]] || root.dim
                 font.pixelSize: Style.font.caption
               }
               Text {

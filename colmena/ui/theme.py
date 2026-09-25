@@ -60,6 +60,11 @@ button.destructive-action {{ color: {c['red']}; border-color: {c['red']}; }}
 
 .colmena-card {{ border: 2px solid {c['muted']}; border-radius: 0; padding: 8px; background: {c['dark_background']}; }}
 .colmena-cards > row {{ border-bottom: 1px solid {c['muted']}; }}
+.colmena-bee-idle {{ color: {c['muted']}; }}
+.colmena-bee-queued {{ color: {c['foreground']}; }}
+.colmena-bee-working {{ color: {c['accent']}; }}
+.colmena-bee-waiting {{ color: {c['yellow']}; }}
+.colmena-bee-error {{ color: {c['red']}; }}
 .colmena-dot {{ font-size: 10px; text-shadow: 0 0 2px {c['background']}; }}
 .colmena-dot-idle {{ color: {c['muted']}; }}
 .colmena-dot-queued {{ color: {c['foreground']}; }}
@@ -79,6 +84,8 @@ def _read():
 def install(display):
     from gi.repository import Adw, Gio, Gtk
 
+    from colmena.ui.window_icons import ICONS
+    Gtk.IconTheme.get_for_display(display).add_search_path(str(ICONS))  # colmena-*-symbolic icons
     provider = Gtk.CssProvider()
     Gtk.StyleContext.add_provider_for_display(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 

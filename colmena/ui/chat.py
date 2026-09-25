@@ -5,7 +5,6 @@ from gi.repository import GLib, Gtk, Pango
 
 from colmena.ui.markdown import segments
 
-BEE = Path(__file__).parent / "icons" / "bee.svg"
 
 
 def _label(markup, css=None):
@@ -96,7 +95,9 @@ class ChatView(Gtk.Box):
             col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, halign=Gtk.Align.START)
             if self.thread == "group":
                 who = Gtk.Box(spacing=6)
-                who.append(Gtk.Image(file=str(BEE), pixel_size=18))
+                bee = Gtk.Image(icon_name="colmena-bee-up-symbolic", pixel_size=18)
+                bee.add_css_class("colmena-bee-queued")
+                who.append(bee)
                 who.append(_label(GLib.markup_escape_text(self.names.get(m["author"], "?")), "colmena-author"))
                 col.append(who)
             col.append(_bubble(m["content"], "colmena-bubble-agent"))

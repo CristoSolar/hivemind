@@ -1,6 +1,5 @@
 from gi.repository import Adw, GLib, Gtk, Pango
 
-from colmena.ui.window_icons import BEE_ICON
 
 COLUMNS = [("todo", "Por hacer"), ("doing", "En curso"), ("done", "Listo")]
 ORDER = [c for c, _ in COLUMNS]
@@ -58,7 +57,7 @@ class BoardView(Gtk.Box):
         row = Gtk.Box(spacing=6)
         who = Gtk.Box(spacing=4, hexpand=True)
         if t["assignee_name"]:
-            who.append(Gtk.Image(file=BEE_ICON, pixel_size=16))
+            who.append(Gtk.Image(icon_name="colmena-bee-up-symbolic", pixel_size=16))
         who.append(Gtk.Label(label=t["assignee_name"] or "sin asignar", xalign=0))
         row.append(who)
         for text, delta in (("◀", -1), ("▶", 1)):

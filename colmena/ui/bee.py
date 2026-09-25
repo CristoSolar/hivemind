@@ -1,0 +1,47 @@
+import weakref
+import zlib
+
+from gi.repository import GLib, Gtk
+
+from colmena.ui.bee_frames import TICK_MS, frame_for
+
+# One shared clock for every bee on screen; hidden bees skip the redraw.
+_bees = weakref.WeakSet()
+_clock = {"tick": 0, "source": None}
+
+
+def _step():
+    _clock["tick"] += 1
+    for bee in list(_bees):
+        if bee.get_mapped():
+            bee.render()
+    return True
+
+
+class AnimatedBee(Gtk.Image):
+    """Pixel bee that takes its colour from the theme and animates by agent status."""
+
+    def __init__(self, status="idle", seed="", size=32):
+        super().__init__(pixel_size=size)
+        self.offset = zlib.crc32(seed.encode()) % 28  # desynchronise bees in the same list
+        self.status, self.shown = None, None
+        self.set_status(status)
+        _bees.add(self)
+        if _clock["source"] is None:
+            _clock["source"] = GLib.timeout_add(TICK_MS, _step)
+
+    def set_status(self, status):
+        if status == self.status:
+            return
+        if self.status:
+            self.remove_css_class(f"colmena-bee-{self.status}")
+        self.status = status
+        self.add_css_class(f"colmena-bee-{status}")
+        self.render()
+
+    def render(self):
+        frame, opacity = frame_for(self.status, _clock["tick"], self.offset)
+        if (frame, opacity) != self.shown:
+            self.shown = (frame, opacity)
+            self.set_from_icon_name(f"colmena-bee-{frame}-symbolic")
+            self.set_opacity(opacity)

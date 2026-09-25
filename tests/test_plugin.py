@@ -50,12 +50,20 @@ class PluginTest(unittest.TestCase):
         self.assertIn("root.installFailed = exitCode !== 0", qml)
         self.assertIn("visible: root.installing || root.installFailed || (!root.connected && !root.installed)", qml)
 
-    def test_panel_bee_matches_icon(self):
+    def test_panel_bee_frames_match_icons(self):
         qml = (ROOT / "Panel.qml").read_text()
-        start = qml.index("BEE_MASK_START") + len("BEE_MASK_START\n")
-        end = qml.index("BEE_MASK_END")
-        rows = re.findall(r'"([#.]{16})"', qml[start:end])
-        self.assertEqual("\n".join(rows), px.mask(px.BEE))
+        for name, grid in px.FRAMES.items():
+            start = qml.index(f"BEE_{name.upper()}_START")
+            end = qml.index(f"BEE_{name.upper()}_END")
+            rows = re.findall(r'"([#.]{16})"', qml[start:end])
+            self.assertEqual("\n".join(rows), px.mask(grid), name)
+
+    def test_panel_animation_matches_window(self):
+        from colmena.ui.bee_frames import TICK_MS
+        qml = (ROOT / "Panel.qml").read_text()
+        self.assertIn(f"interval: {TICK_MS}", qml)
+        for status in ("idle", "working", "waiting"):
+            self.assertIn(f'"{status}"', qml)
 
 
 if __name__ == "__main__":
