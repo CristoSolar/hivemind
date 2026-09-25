@@ -26,6 +26,12 @@ create table if not exists tasks(
   created_at real not null, updated_at real not null);
 create table if not exists task_log(
   id integer primary key, task_id text not null, actor text not null, text text not null, ts real not null);
+create table if not exists sessions(
+  agent_id text not null, thread text not null, session_id text not null,
+  primary key(agent_id, thread));
+create table if not exists groups(id text primary key, name text not null, created_at real not null);
+create table if not exists group_members(
+  group_id text not null, agent_id text not null, primary key(group_id, agent_id));
 """
 
 
@@ -42,6 +48,9 @@ class Store:
         if "model" not in columns:  # databases created before per-agent models
             with self.db:
                 self.db.execute("alter table agents add column model text")
+        with self.db:  # memory used to live on the agent row: it becomes the private chat's session
+            self.db.execute("insert or ignore into sessions(agent_id, thread, session_id)"
+                            " select id, id, session_id from agents where session_id is not null")
 
     def _agent(self, row):
         if row is None:
@@ -76,6 +85,8 @@ class Store:
     def delete_agent(self, id):
         with self.db:
             self.db.execute("delete from agents where id = ?", (id,))
+            self.db.execute("delete from sessions where agent_id = ?", (id,))
+            self.db.execute("delete from group_members where agent_id = ?", (id,))
 
     def set_session(self, id, session_id):
         with self.db:
@@ -215,3 +226,62 @@ class Store:
     def task_log(self, task_id):
         rows = self.db.execute("select * from task_log where task_id = ? order by id", (task_id,))
         return [dict(r) for r in rows]
+
+    # sessions: one Claude Code session per agent per conversation ------------
+    def session(self, agent_id, thread):
+        row = self.db.execute("select session_id from sessions where agent_id = ? and thread = ?",
+                              (agent_id, thread)).fetchone()
+        return row[0] if row else None
+
+    def save_session(self, agent_id, thread, session_id):
+        with self.db:
+            self.db.execute("insert or replace into sessions values(?, ?, ?)", (agent_id, thread, session_id))
+
+    def delete_sessions(self, agent_id=None, thread=None):
+        if agent_id is None and thread is None:
+            raise ValueError("delete_sessions needs an agent, a thread or both")
+        clauses, args = [], []
+        for column, value in (("agent_id", agent_id), ("thread", thread)):
+            if value is not None:
+                clauses.append(f"{column} = ?")
+                args.append(value)
+        with self.db:
+            self.db.execute("delete from sessions where " + " and ".join(clauses), args)
+
+    def delete_messages(self, thread):
+        with self.db:
+            self.db.execute("delete from messages where thread = ?", (thread,))
+
+    # groups -------------------------------------------------------------------
+    def _group(self, row):
+        if row is None:
+            return None
+        members = [r[0] for r in self.db.execute(
+            "select agent_id from group_members where group_id = ? order by agent_id", (row["id"],))]
+        return {**dict(row), "members": members}
+
+    def create_group(self, name):
+        g = {"id": "g-" + _new_id(), "name": name, "created_at": time.time()}
+        with self.db:
+            self.db.execute("insert into groups values(:id, :name, :created_at)", g)
+        return self.group(g["id"])
+
+    def groups(self):
+        return [self._group(r) for r in self.db.execute("select * from groups order by created_at")]
+
+    def group(self, id):
+        return self._group(self.db.execute("select * from groups where id = ?", (id,)).fetchone())
+
+    def rename_group(self, id, name):
+        with self.db:
+            self.db.execute("update groups set name = ? where id = ?", (name, id))
+
+    def set_members(self, id, members):
+        with self.db:
+            self.db.execute("delete from group_members where group_id = ?", (id,))
+            self.db.executemany("insert into group_members values(?, ?)", [(id, m) for m in members])
+
+    def delete_group(self, id):
+        with self.db:
+            self.db.execute("delete from groups where id = ?", (id,))
+            self.db.execute("delete from group_members where group_id = ?", (id,))

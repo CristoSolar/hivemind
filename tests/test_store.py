@@ -104,6 +104,57 @@ class StoreTest(unittest.TestCase):
         m = self.s.add_message(a["id"], "user", "text", "hola")
         self.assertEqual(self.s.last_activity(a["id"]), m["ts"])
 
+    def test_sessions_per_thread(self):
+        a = self.s.create_agent("Dev", "dev", "/tmp")
+        self.assertIsNone(self.s.session(a["id"], "group"))
+        self.s.save_session(a["id"], "group", "g1")
+        self.s.save_session(a["id"], a["id"], "p1")
+        self.s.save_session(a["id"], "group", "g2")  # replaces
+        self.assertEqual((self.s.session(a["id"], "group"), self.s.session(a["id"], a["id"])), ("g2", "p1"))
+        self.s.delete_sessions(thread="group")
+        self.assertEqual((self.s.session(a["id"], "group"), self.s.session(a["id"], a["id"])), (None, "p1"))
+        self.s.delete_sessions(agent_id=a["id"])
+        self.assertIsNone(self.s.session(a["id"], a["id"]))
+        with self.assertRaises(ValueError):
+            self.s.delete_sessions()
+
+    def test_groups_and_members(self):
+        a = self.s.create_agent("Dev", "dev", "/tmp")
+        b = self.s.create_agent("Mkt", "dev", "/tmp")
+        g = self.s.create_group("Lanzamiento")
+        self.assertTrue(g["id"].startswith("g-"))
+        self.s.set_members(g["id"], [a["id"], b["id"]])
+        self.assertEqual(set(self.s.group(g["id"])["members"]), {a["id"], b["id"]})
+        self.s.rename_group(g["id"], "Campaña")
+        self.assertEqual(self.s.groups()[0]["name"], "Campaña")
+        self.s.delete_agent(b["id"])
+        self.assertEqual(self.s.group(g["id"])["members"], [a["id"]])
+        self.s.delete_group(g["id"])
+        self.assertIsNone(self.s.group(g["id"]))
+
+    def test_delete_messages_of_one_thread(self):
+        self.s.add_message("group", "user", "text", "a")
+        self.s.add_message("g-1", "user", "text", "b")
+        self.s.delete_messages("group")
+        self.assertEqual([m["content"] for m in self.s.history("group")], [])
+        self.assertEqual([m["content"] for m in self.s.history("g-1")], ["b"])
+
+    def test_migration_moves_private_memory_once(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory(dir=os.path.expanduser("~/.cache/tmp")) as d:
+            path = d + "/old.db"
+            old = Store(path)
+            a = old.create_agent("Dev", "dev", "/tmp")
+            old.set_session(a["id"], "legacy")  # pre-sessions memory lived on the agent row
+            old.db.execute("delete from sessions")
+            old.db.commit()
+            old.db.close()
+            for _ in range(2):  # idempotent
+                s = Store(path)
+                self.assertEqual(s.session(a["id"], a["id"]), "legacy")
+                self.assertIsNone(s.session(a["id"], "group"))
+                self.assertEqual(s.db.execute("select count(*) from sessions").fetchone()[0], 1)
+                s.db.close()
 
 if __name__ == "__main__":
     unittest.main()
