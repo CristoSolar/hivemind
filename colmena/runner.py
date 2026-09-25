@@ -1,0 +1,77 @@
+from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions, ClaudeSDKClient,
+                              PermissionResultAllow, PermissionResultDeny, ResultMessage,
+                              StreamEvent, TextBlock, ToolResultBlock, ToolUseBlock, UserMessage)
+
+from colmena.roles import permitted, suggested_rule
+
+DENY_MESSAGE = "El usuario denegó esta acción"
+_MAX_RESULT = 4000
+
+
+def _text_of(content):
+    if isinstance(content, list):
+        content = "\n".join(c.get("text", "") for c in content if isinstance(c, dict))
+    return (content or "")[:_MAX_RESULT]
+
+
+class Turn:
+    def __init__(self, agent, role, prompt, emit, ask, model=None, client_factory=ClaudeSDKClient):
+        self.agent, self.role, self.prompt = agent, role, prompt
+        self.emit, self.ask, self.model = emit, ask, model
+        self.client_factory = client_factory
+        self.client = None
+
+    async def _can_use(self, tool, input, ctx):
+        rules = self.role["allowed_tools"] + self.agent["extra_allowed"]
+        if permitted(tool, input, rules):
+            return PermissionResultAllow()
+        decision = await self.ask(tool, input, suggested_rule(tool, ctx.suggestions))
+        if decision == "deny":
+            return PermissionResultDeny(message=DENY_MESSAGE)
+        return PermissionResultAllow()
+
+    def _options(self):
+        return ClaudeAgentOptions(
+            cwd=self.agent["cwd"],
+            resume=self.agent["session_id"],
+            model=self.model,
+            system_prompt={"type": "preset", "preset": "claude_code", "append": self.role["system_prompt"]},
+            can_use_tool=self._can_use,
+            include_partial_messages=True,
+            setting_sources=["user", "project", "local"],
+        )
+
+    def _translate(self, m):
+        if isinstance(m, StreamEvent):
+            delta = m.event.get("delta", {})
+            if m.event.get("type") == "content_block_delta" and delta.get("type") == "text_delta":
+                self.emit({"type": "delta", "text": delta["text"]})
+        elif isinstance(m, AssistantMessage):
+            for b in m.content:
+                if isinstance(b, TextBlock):
+                    self.emit({"type": "text", "text": b.text})
+                elif isinstance(b, ToolUseBlock):
+                    self.emit({"type": "tool", "id": b.id, "name": b.name, "input": b.input})
+        elif isinstance(m, UserMessage) and isinstance(m.content, list):
+            for b in m.content:
+                if isinstance(b, ToolResultBlock):
+                    self.emit({"type": "tool_result", "id": b.tool_use_id,
+                               "content": _text_of(b.content), "is_error": bool(b.is_error)})
+
+    async def run(self):
+        out = {"session_id": self.agent["session_id"], "is_error": True, "text": "", "cost": None}
+        async with self.client_factory(self._options()) as client:
+            self.client = client
+            await client.query(self.prompt)
+            async for m in client.receive_response():
+                if isinstance(m, ResultMessage):
+                    out = {"session_id": m.session_id, "is_error": m.is_error,
+                           "text": m.result or "", "cost": m.total_cost_usd}
+                else:
+                    self._translate(m)
+        self.client = None
+        return out
+
+    async def stop(self):
+        if self.client:
+            await self.client.interrupt()
