@@ -56,8 +56,13 @@ class MainWindow(Adw.ApplicationWindow):
         self.banner.connect("button-clicked", lambda *_: os.system("systemctl --user start hivemind &"))
         content_tb = Adw.ToolbarView()
         content_tb.add_top_bar(self.content_hb)
-        content_tb.add_top_bar(self.banner)
-        content_tb.set_content(self.stack)
+        # The banner lives above the content, not in the top bar: a hidden banner there still
+        # pushed the header bar down and misaligned it with the sidebar's.
+        content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        content_box.append(self.banner)
+        self.stack.set_vexpand(True)
+        content_box.append(self.stack)
+        content_tb.set_content(content_box)
 
         split = Adw.NavigationSplitView(
             sidebar=Adw.NavigationPage(title="HiveMind", child=side_tb),

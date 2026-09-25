@@ -25,7 +25,8 @@ def css(colors, size=14):
 window, .hivemind-root {{ background-color: {c['background']}; color: {c['foreground']};
   font-size: {size}px; }}
 
-headerbar {{ background: {c['background']}; box-shadow: inset 0 -1px {c['muted']}; min-height: 38px; }}
+headerbar {{ background: {c['background']}; box-shadow: inset 0 -1px {c['muted']}; min-height: 48px;
+  margin: 0; padding-top: 0; padding-bottom: 0; }}
 headerbar .title {{ font-weight: bold; }}
 
 .navigation-sidebar {{ background: {c['background']}; }}
