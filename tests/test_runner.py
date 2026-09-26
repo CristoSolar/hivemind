@@ -175,6 +175,30 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual([e["kind"] for e in events if e["type"] == "activity"],
                          ["thinking", "tool", "thinking", "thinking"])
 
+    def test_attachments_folder_is_readable_without_asking(self):
+        from hivemind import attachments
+        inside = str(attachments.root() / "t" / "ab12-captura.png")
+        script = [AssistantMessage(content=[ToolUseBlock(id="t1", name="Read", input={"file_path": inside}),
+                                            ToolUseBlock(id="t2", name="Read", input={"file_path": "/etc/shadow"}),
+                                            ToolUseBlock(id="t3", name="Read",
+                                                         input={"file_path": str(attachments.root() / "t" / ".." / ".." / ".." / "x")})],
+                                   model="m"), result()]
+        clients, asked = [], []
+
+        async def ask(tool, input, rule):
+            asked.append(input["file_path"])
+            return "deny"
+
+        def factory(options):
+            clients.append(FakeClient(options, script))
+            return clients[-1]
+
+        role = {"system_prompt": "rol", "allowed_tools": []}  # a role that allows nothing by itself
+        asyncio.run(Turn(AGENT, role, "mira", lambda e: None, ask, client_factory=factory).run())
+        self.assertEqual(asked[0], "/etc/shadow")
+        self.assertEqual(len(asked), 2)  # "../" out of the folder still asks
+        self.assertIn(str(attachments.root()), clients[0].options.add_dirs)
+
 
 if __name__ == "__main__":
     unittest.main()

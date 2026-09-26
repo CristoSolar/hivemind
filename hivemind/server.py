@@ -14,7 +14,7 @@ async def _dispatch(hub, method, p, client=None):
     if method == "history":
         return hub.store.history(p["thread"], p.get("before"), p.get("limit", 50))
     if method == "send":
-        await hub.send(p["thread"], p["text"])
+        await hub.send(p["thread"], p.get("text", ""), attachments=p.get("attachments") or None)
         return True
     if method == "stop":
         await hub.stop(p["agent"])

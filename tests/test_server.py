@@ -145,6 +145,21 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.call("list_groups"))["result"], [])
         self.assertIn("thread_cleared", self.events)
         self.assertIn("groups", self.events)
+    async def test_send_with_attachments(self):
+        from pathlib import Path
+        from unittest import mock
+        from hivemind import attachments
+        with mock.patch.object(attachments, "root", lambda: Path(self.dir.name) / "adjuntos"):
+            a = (await self.call("create_agent", name="Dev", role="dev"))["result"]
+            f = Path(self.dir.name) / "foto.png"
+            f.write_bytes(b"png")
+            self.assertTrue((await self.call("send", thread=a["id"], attachments=[str(f)]))["result"])
+            await self.hub.drain()
+            first = (await self.call("history", thread=a["id"]))["result"][0]
+            self.assertEqual([x["name"] for x in first["attachments"]], ["foto.png"])
+            bad = await self.call("send", thread=a["id"], text="x", attachments=["/no/existe.png"])
+            self.assertIn("No encuentro", bad["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,10 @@
+from pathlib import Path
+
 from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions, ClaudeSDKClient,
                               PermissionResultAllow, PermissionResultDeny, ResultMessage,
                               StreamEvent, TextBlock, ToolResultBlock, ToolUseBlock, UserMessage)
 
+from hivemind import attachments
 from hivemind.roles import permitted, suggested_rule
 
 DENY_MESSAGE = "El usuario denegó esta acción"
@@ -29,7 +32,7 @@ class Turn:
 
     async def _can_use(self, tool, input, ctx):
         rules = [BOARD_RULE] + self.role["allowed_tools"] + self.agent["extra_allowed"]
-        if permitted(tool, input, rules):
+        if permitted(tool, input, rules) or self._reads_an_attachment(tool, input):
             return PermissionResultAllow()
         decision = await self.ask(tool, input, suggested_rule(tool, input, ctx.suggestions))
         if decision == "deny":
@@ -41,7 +44,17 @@ class Turn:
                 "compartido de tareas (herramientas tablero_listar, tablero_crear, tablero_mover y "
                 "tablero_asignar): úsalo para coordinar trabajo de varios pasos con los demás agentes.")
 
+    @staticmethod
+    def _reads_an_attachment(tool, input):
+        """Reading files attached to messages never needs approval. The path is resolved first,
+        so "adjuntos/../../etc" does not count as inside the folder."""
+        if tool != "Read" or not input.get("file_path"):
+            return False
+        path = Path(input["file_path"]).expanduser().resolve()
+        return path.is_relative_to(attachments.root().resolve())
+
     def _options(self):
+        attachments.root().mkdir(parents=True, exist_ok=True)  # the CLI wants add_dirs to exist
         return ClaudeAgentOptions(
             cwd=self.agent["cwd"],
             resume=self.agent["session_id"],
@@ -53,6 +66,7 @@ class Turn:
             setting_sources=["user", "project", "local"],
             env=self.env or {},
             mcp_servers=self.mcp_servers or {},
+            add_dirs=[str(attachments.root())],
         )
 
     def _translate(self, m):
