@@ -430,6 +430,94 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.store.session(b["id"], g["id"]))
         self.assertEqual([m for m in self.store.history(g["id"]) if m["author"] == b["id"]], [])
 
+    def attach_env(self, transcript="hola equipo"):
+        from pathlib import Path
+        from unittest import mock
+        from hivemind import attachments
+        tmp = tempfile.TemporaryDirectory(dir=os.path.expanduser("~/.cache/tmp"))
+        self.addCleanup(tmp.cleanup)
+        patcher = mock.patch.object(attachments, "root", lambda: Path(tmp.name) / "adjuntos")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        async def fake(path):
+            return transcript
+        self.hub.transcriber = fake
+
+        def make(name):
+            p = Path(tmp.name) / name
+            p.write_bytes(b"data")
+            return str(p)
+        return make, Path(tmp.name) / "adjuntos"
+
+    async def test_private_message_with_files_reaches_the_prompt(self):
+        prompts = []
+
+        class SpyTurn(FakeTurn):
+            def __init__(self, agent, role, prompt, *a, **kw):
+                prompts.append(prompt)
+                super().__init__(agent, role, prompt, *a, **kw)
+
+        self.hub.turn_factory = SpyTurn
+        make, root = self.attach_env()
+        dev, = self.make("Dev")
+        await self.hub.send(dev["id"], "", attachments=[make("captura.png"), make("nota.m4a")])
+        await self.hub.drain()
+        msg = self.store.history(dev["id"])[0]
+        self.assertEqual([a["kind"] for a in msg["attachments"]], ["imagen", "audio"])
+        self.assertEqual(msg["attachments"][1]["transcript"], "hola equipo")
+        self.assertIn("Adjuntos (ábrelos con la herramienta Read):", prompts[0])
+        self.assertIn(str(root), prompts[0])
+        self.assertIn("transcripción: «hola equipo»", prompts[0])
+
+    async def test_empty_message_without_files_is_rejected(self):
+        dev, = self.make("Dev")
+        with self.assertRaises(ValueError):
+            await self.hub.send(dev["id"], "   ")
+        self.assertEqual(self.store.history(dev["id"]), [])
+
+    async def test_bad_file_posts_nothing(self):
+        self.attach_env()
+        dev, = self.make("Dev")
+        with self.assertRaises(ValueError):
+            await self.hub.send(dev["id"], "mira", attachments=["/no/existe.png"])
+        self.assertEqual(self.store.history(dev["id"]), [])
+
+    async def test_failed_transcription_notices_once_and_still_attaches(self):
+        make, _ = self.attach_env(transcript=None)
+        dev, = self.make("Dev")
+        await self.hub.send(dev["id"], "escucha", attachments=[make("a.m4a"), make("b.ogg")])
+        await self.hub.drain()
+        hist = self.store.history(dev["id"])
+        self.assertEqual(len(hist[0]["attachments"]), 2)
+        notices = [m for m in hist if m["author"] == "system"]
+        self.assertEqual(len(notices), 1)
+        self.assertIn("Voxtype", notices[0]["content"])
+
+    async def test_group_history_lists_attachments(self):
+        prompts = []
+
+        class SpyTurn(FakeTurn):
+            def __init__(self, agent, role, prompt, *a, **kw):
+                prompts.append(prompt)
+                super().__init__(agent, role, prompt, *a, **kw)
+
+        self.hub.turn_factory = SpyTurn
+        make, root = self.attach_env()
+        dev, = self.make("Dev")
+        await self.hub.send("group", "@Dev revisa esto", attachments=[make("informe.pdf")])
+        await self.hub.drain()
+        self.assertIn("documento: " + str(root / "group"), prompts[0])
+
+    async def test_clear_thread_deletes_its_files(self):
+        make, root = self.attach_env()
+        dev, = self.make("Dev")
+        await self.hub.send(dev["id"], "guarda", attachments=[make("a.txt")])
+        await self.hub.drain()
+        self.assertTrue((root / dev["id"]).exists())
+        await self.hub.clear_thread(dev["id"])
+        self.assertFalse((root / dev["id"]).exists())
+
 
 if __name__ == "__main__":
     unittest.main()

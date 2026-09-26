@@ -7,7 +7,7 @@ import time
 import sys
 from collections import deque
 
-from hivemind import capacity, paths
+from hivemind import attachments as att, capacity, paths
 from hivemind.board import Board
 from hivemind.router import CONTEXT_MESSAGES, MAX_HOPS, NAME_RE, mentions
 from hivemind.routines import Routines
@@ -23,15 +23,18 @@ def notify(title, body):
 
 MODELS = (None, "opus", "sonnet", "haiku")  # None = Claude Code's default
 AUTH_MODES = ("subscription", "api_key")
+NO_TRANSCRIPT = ("No pude transcribir el audio: instala Voxtype desde el menú de Omarchy (Instalar → Voxtype) "
+                 "y elige un modelo multilingüe para audios en español.")
 PRIVATE_BRIDGE = 10  # private messages an agent sees when it speaks in a group
 
 
 class Hub:
     def __init__(self, store, roles, turn_factory=Turn, meminfo=capacity.read_meminfo,
-                 config=None, notifier=notify, save_config=paths.save_config):
+                 config=None, notifier=notify, save_config=paths.save_config, transcriber=None):
         self.store, self.roles = store, roles
         self.turn_factory, self.meminfo, self.notifier = turn_factory, meminfo, notifier
         self.save_config = save_config
+        self.transcriber = transcriber or att.transcribe
         self.config = config or {}
         self.clients = []
         self.queue = deque()        # (agent_id, thread, prompt)
@@ -76,8 +79,9 @@ class Hub:
         self.broadcast({"type": "activity", "agent": agent_id, "activity": activity,
                         "last_active": self.last_active.get(agent_id)})
 
-    def _post(self, thread, author, kind, content):
-        self.broadcast({"type": "message", "message": self.store.add_message(thread, author, kind, content)})
+    def _post(self, thread, author, kind, content, files=None):
+        message = self.store.add_message(thread, author, kind, content, files)
+        self.broadcast({"type": "message", "message": message})
 
     def max_running(self):
         return capacity.max_running(self.meminfo(), self.per_turn_mb, self.config.get("max_running"))
@@ -177,6 +181,7 @@ class Hub:
         # Stop what is running in this conversation first, so nothing is posted after the wipe.
         await self._stop_in_thread(thread)
         self.store.delete_messages(thread)
+        att.remove_thread(thread)
         for agent_id in members:
             self.store.delete_sessions(agent_id=agent_id, thread=thread)
         if thread == "group" or thread.startswith("g-"):
@@ -268,13 +273,30 @@ class Hub:
         self.broadcast({"type": "groups", "groups": self.store.groups()})
 
     # messages ---------------------------------------------------------------
-    async def send(self, thread, text, origin=None):
-        self._post(thread, "user", "text", text)
+    async def send(self, thread, text, origin=None, attachments=None):
+        text = text or ""
+        if not text.strip() and not attachments:
+            raise ValueError("Escribe un mensaje o adjunta un archivo.")
+        files = self._attach(thread, attachments or [])  # raises before anything is posted
+        missing = False
+        for f in files:
+            if f["kind"] == "audio":
+                f["transcript"] = await self.transcriber(f["path"])
+                missing = missing or not f["transcript"]
+        self._post(thread, "user", "text", text, files)
+        if missing:
+            self._post(thread, "system", "system", NO_TRANSCRIPT)
         if self.is_group(thread):
             self.hops[thread] = 0
             self._route(thread, text, author=None, origin=origin)
         elif self.store.agent(thread):
-            self._enqueue(thread, thread, text, origin)
+            prompt = "\n\n".join(p for p in (text, att.prompt_lines(files)) if p)
+            self._enqueue(thread, thread, prompt, origin)
+
+    def _attach(self, thread, sources):
+        if sources and not (self.is_group(thread) or self.store.agent(thread)):
+            raise ValueError("Esa conversación no existe.")
+        return att.store(sources, thread) if sources else []
 
     def _route(self, thread, text, author, origin=None):
         agents = self.store.agents()
@@ -308,7 +330,12 @@ class Hub:
         def who(m):
             return {"user": "Usuario", "system": "Sistema"}.get(m["author"]) or names.get(m["author"], "?")
 
-        lines = [f"[{who(m)}]: {m['content']}" for m in self.store.history(thread, limit=CONTEXT_MESSAGES)]
+        lines = []
+        for m in self.store.history(thread, limit=CONTEXT_MESSAGES):
+            line = f"[{who(m)}]: {m['content']}"
+            if m.get("attachments"):
+                line += "\n" + att.prompt_lines(m["attachments"])
+            lines.append(line)
         prompt = ("Mensajes recientes de esta conversación grupal de HiveMind. Te mencionaron en el último. "
                   "Tu respuesta se publicará en el grupo.\n\n" + "\n".join(lines))
         # Bridge: what the agent and the user said in private, so status questions get real answers.
