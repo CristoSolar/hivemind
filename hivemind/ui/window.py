@@ -186,7 +186,8 @@ class MainWindow(Adw.ApplicationWindow):
                 view = BoardView(self)
                 view.load(self.tasks)
             else:
-                view = ChatView(self.client, thread, self._names())
+                view = ChatView(self.client, thread, self._names(),
+                                members=lambda t=thread: [a["name"] for a in self._members(t)])
                 view.load(self.approvals)
             self.views[thread] = view
             self.stack.add_named(view, thread)
@@ -209,6 +210,12 @@ class MainWindow(Adw.ApplicationWindow):
         if thread in ("routines", "board", "group"):
             return thread
         return "custom" if thread.startswith("g-") else "agent"
+
+    def _members(self, thread):
+        if thread == "group":
+            return self.agents
+        group = self._group(thread)
+        return [a for a in self.agents if group and a["id"] in group["members"]]
 
     def _group(self, thread):
         return next((g for g in self.groups if g["id"] == thread), None)

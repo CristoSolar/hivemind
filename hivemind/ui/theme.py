@@ -50,6 +50,9 @@ headerbar .title {{ font-weight: bold; }}
 entry {{ background: {c['dark_background']}; border: 2px solid {c['muted']}; border-radius: 0;
   box-shadow: none; outline: none; min-height: 34px; }}
 entry:focus-within {{ border-color: {c['accent']}; }}
+.hivemind-composer-frame {{ background: {c['dark_background']}; border: 2px solid {c['muted']}; border-radius: 0; }}
+.hivemind-composer-frame:focus-within {{ border-color: {c['accent']}; }}
+textview.hivemind-composer, textview.hivemind-composer text {{ background: {c['dark_background']}; color: {c['foreground']}; }}
 
 button {{ border-radius: 0; box-shadow: none; background: transparent;
   border: 2px solid {c['muted']}; padding: 4px 12px; }}
@@ -92,6 +95,11 @@ def _read():
         return tomllib.loads(THEME_FILE.read_text())
     except (OSError, tomllib.TOMLDecodeError):
         return {}
+
+
+def colors():
+    """The current Omarchy theme colours, with fallbacks for missing keys."""
+    return {**_FALLBACK, **_read()}
 
 
 def install(display):

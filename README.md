@@ -142,6 +142,14 @@ o.bind("SUPER + SHIFT + A", "HiveMind", "hivemind")
 5. Crea un segundo agente y escribe en **Grupo**: «@Dev revisa el código y pásale a @Marketing
    un resumen para el blog».
 
+Al escribir:
+- **Enter** envía y **Shift+Enter** hace un salto de línea. La caja crece hasta unas seis
+  líneas.
+- En un grupo, escribe **@** para ver la lista de sus integrantes. Se filtra mientras escribes,
+  y eliges con ↑↓ y Enter o Tab.
+- Las menciones a agentes que existen se ven destacadas; si una no se destaca, el nombre está
+  mal escrito.
+
 Atajos: **Alt+1** abre el Grupo, **Alt+2** Rutinas, **Alt+3** el Tablero, y **Alt+4…9**
 cada agente, en el orden de la barra lateral.
 

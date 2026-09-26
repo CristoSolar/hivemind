@@ -22,6 +22,19 @@ class MarkdownTest(unittest.TestCase):
     def test_stars_inside_code_untouched(self):
         self.assertEqual(segments("`**no**`"), [("text", "<tt>**no**</tt>")])
 
+    def test_known_mentions_are_highlighted(self):
+        out = segments("hola @Dev y @nadie, `@Dev` no", mentions={"Dev"}, mention_color="#89b4fa")
+        self.assertEqual(out, [("text", 'hola <span foreground="#89b4fa" weight="bold">@Dev</span> y @nadie, '
+                                        '<tt>@Dev</tt> no')])
+
+    def test_mentions_match_case_insensitively(self):
+        out = segments("@dev listo", mentions={"Dev"}, mention_color="#fff")
+        self.assertEqual(out, [("text", '<span foreground="#fff" weight="bold">@dev</span> listo')])
+
+    def test_emails_are_not_mentions(self):
+        self.assertEqual(segments("soporte@Dev.cl", mentions={"Dev"}, mention_color="#fff"),
+                         [("text", "soporte@Dev.cl")])
+
 
 if __name__ == "__main__":
     unittest.main()

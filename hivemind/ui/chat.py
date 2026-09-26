@@ -3,6 +3,8 @@ from pathlib import Path
 
 from gi.repository import GLib, Gtk, Pango
 
+from hivemind.ui import theme
+from hivemind.ui.composer import Composer
 from hivemind.ui.markdown import segments
 
 
@@ -15,10 +17,10 @@ def _label(markup, css=None):
     return lbl
 
 
-def _bubble(text, css):
+def _bubble(text, css, mentions=None):
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
     box.add_css_class(css)
-    for seg in segments(text):
+    for seg in segments(text, mentions=mentions, mention_color=theme.colors()["accent"]):
         if seg[0] == "text":
             box.append(_label(seg[1]))
         else:
@@ -29,9 +31,10 @@ def _bubble(text, css):
 
 
 class ChatView(Gtk.Box):
-    def __init__(self, client, thread, names):
+    def __init__(self, client, thread, names, members=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.client, self.thread, self.names = client, thread, names
+        self.members = members or (lambda: [])  # names that "@" can complete in this conversation
         self.is_group = thread == "group" or thread.startswith("g-")
         self.tools = {}       # tool_use_id -> Gtk.Expander
         self.cards = {}       # approval_id -> widget
@@ -42,10 +45,11 @@ class ChatView(Gtk.Box):
         self.scroll = Gtk.ScrolledWindow(vexpand=True, child=self.list, hscrollbar_policy=Gtk.PolicyType.NEVER)
         self.append(self.scroll)
 
-        bar = Gtk.Box(spacing=6, margin_top=6, margin_bottom=10, margin_start=16, margin_end=16)
-        self.entry = Gtk.Entry(hexpand=True, placeholder_text=(
-            "Escribe a todos… o usa @Nombre para uno solo" if self.is_group else "Escribe una tarea…"))
-        self.entry.connect("activate", self._send)
+        bar = Gtk.Box(spacing=6, margin_top=6, margin_bottom=10, margin_start=16, margin_end=16,
+                      valign=Gtk.Align.END)
+        self.entry = Composer(self._send_text, names=self.members if self.is_group else (lambda: []),
+                              placeholder=("Escribe a todos… o usa @Nombre para uno solo" if self.is_group
+                                           else "Escribe una tarea…  (Shift+Enter: nueva línea)"))
         bar.append(self.entry)
         if not self.is_group:
             self.stop_btn = Gtk.Button(icon_name="media-playback-stop-symbolic", tooltip_text="Detener")
@@ -96,7 +100,7 @@ class ChatView(Gtk.Box):
         if m["kind"] == "system":
             self.list.append(_label(GLib.markup_escape_text(m["content"]), "hivemind-system"))
         elif m["author"] == "user":
-            b = _bubble(m["content"], "hivemind-bubble-user")
+            b = _bubble(m["content"], "hivemind-bubble-user", self.names.values())
             b.set_halign(Gtk.Align.END)
             self.list.append(b)
         else:
@@ -108,7 +112,7 @@ class ChatView(Gtk.Box):
                 who.append(bee)
                 who.append(_label(GLib.markup_escape_text(self.names.get(m["author"], "?")), "hivemind-author"))
                 col.append(who)
-            col.append(_bubble(m["content"], "hivemind-bubble-agent"))
+            col.append(_bubble(m["content"], "hivemind-bubble-agent", self.names.values()))
             self.list.append(col)
         self._scroll_end()
 
@@ -172,7 +176,7 @@ class ChatView(Gtk.Box):
             self.list.remove(card)
 
     def _send(self, *_):
-        text = self.entry.get_text().strip()
-        if text:
-            self.entry.set_text("")
-            self.client.call("send", {"thread": self.thread, "text": text})
+        self.entry.send()
+
+    def _send_text(self, text):
+        self.client.call("send", {"thread": self.thread, "text": text})
