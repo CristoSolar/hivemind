@@ -10,7 +10,8 @@ class RolesTest(unittest.TestCase):
     def test_defaults_written_and_loaded(self):
         with tempfile.TemporaryDirectory() as d:
             roles = load_roles(Path(d))
-            self.assertEqual(set(roles), {"dev", "marketing", "sysadmin"})
+            self.assertEqual(set(roles), {"dev", "marketing", "producto", "uiux", "qa",
+                                          "datos", "soporte", "sysadmin"})
             self.assertIn("Read", roles["dev"]["allowed_tools"])
             self.assertTrue((Path(d) / "dev.toml").exists())
 

@@ -26,6 +26,8 @@ Panel {
   property var agents: []
   property var statuses: ({})
   property var approvals: []
+  property var routines: []
+  readonly property var pendingRoutines: root.routines.filter(r => r.enabled && r.due_since)
   property int nextId: 1
 
   readonly property int working: Object.keys(root.statuses).filter(k => root.statuses[k] === "working").length
@@ -45,7 +47,7 @@ Panel {
   readonly property bool allAsleep: root.agents.length > 0 && root.agents.every(
     a => (root.statuses[a.id] || "idle") === "idle" && root.now - (root.lastActive[a.id] || 0) >= root.sleepAfter)
   readonly property string beeStatus: !root.connected ? "offline"
-    : root.approvals.length > 0 ? "waiting"
+    : root.approvals.length > 0 || root.pendingRoutines.length > 0 ? "waiting"
     : root.working > 0 ? (Object.values(root.activities).indexOf("tool") !== -1 ? "tool" : "thinking")
     : root.allAsleep ? "sleeping" : "idle"
   readonly property var frame: {
@@ -113,6 +115,7 @@ Panel {
       root.agents = msg.result.agents
       root.statuses = msg.result.statuses
       root.approvals = msg.result.approvals || []
+      root.routines = msg.result.routines || []
       root.activities = msg.result.activities || ({})
       root.lastActive = msg.result.last_active || ({})
       return
@@ -129,6 +132,7 @@ Panel {
       root.activities = a
       if (ev.last_active) { const l = Object.assign({}, root.lastActive); l[ev.agent] = ev.last_active; root.lastActive = l }
     }
+    else if (ev.type === "routines") root.routines = ev.routines
     else if (ev.type === "approval") root.approvals = root.approvals.concat([ev.approval])
     else if (ev.type === "approval_resolved") root.approvals = root.approvals.filter(a => a.id !== ev.id)
   }
@@ -227,8 +231,8 @@ Panel {
         Text {
           anchors.right: parent.right
           anchors.bottom: parent.bottom
-          visible: root.connected && (root.approvals.length > 0 || root.working > 0)
-          text: root.approvals.length > 0 ? "!" : String(root.working)
+          visible: root.connected && (root.approvals.length > 0 || root.pendingRoutines.length > 0 || root.working > 0)
+          text: (root.approvals.length > 0 || root.pendingRoutines.length > 0) ? "!" : String(root.working)
           color: root.glyphColor
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -314,6 +318,48 @@ Panel {
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
+          }
+
+          // --- routines waiting for a click ----------------------------------
+          PanelSectionHeader {
+            visible: root.connected && root.pendingRoutines.length > 0
+            text: "RUTINAS"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+          }
+          Repeater {
+            model: root.connected ? root.pendingRoutines : []
+            delegate: Column {
+              required property var modelData
+              width: column.width
+              spacing: Style.spacing.xs
+              Text {
+                width: parent.width
+                elide: Text.ElideRight
+                text: "«" + modelData.name + "» te espera"
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+              }
+              Text {
+                width: parent.width
+                wrapMode: Text.WrapAnywhere
+                maximumLineCount: 2
+                elide: Text.ElideRight
+                text: modelData.prompt
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+              Row {
+                spacing: Style.spacing.sm
+                Button { text: "Correr"; foreground: root.foreground; fontFamily: root.fontFamily
+                         onClicked: root.send("run_routine_now", { routine: modelData.id }) }
+                Button { text: "Saltar"; foreground: root.foreground; fontFamily: root.fontFamily; bordered: true
+                         onClicked: root.send("skip_routine", { routine: modelData.id }) }
+              }
+            }
           }
 
           // --- approvals -----------------------------------------------------

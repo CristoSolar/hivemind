@@ -4,7 +4,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from hivemind.ui.theme import css, font_size
+from hivemind.ui.theme import AGENT_TINTS, css, font_size, tints
 
 COLORS = {"mode": "dark", "accent": "#89b4fa", "background": "#1e1e2e", "foreground": "#cdd6f4",
           "lighter_background": "#313244", "muted": "#585b70", "red": "#f38ba8",
@@ -49,3 +49,33 @@ class ThemeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TintTest(unittest.TestCase):
+    """One colour per agent, derived from the theme so a theme switch carries it along."""
+
+    def test_one_distinct_tint_per_slot(self):
+        got = tints(COLORS["accent"])
+        self.assertEqual(len(got), AGENT_TINTS)
+        self.assertEqual(len(set(got)), AGENT_TINTS, "two agents would look the same")
+
+    def test_no_tint_collides_with_the_accent(self):
+        """The accent means "you": an agent must never wear it."""
+        self.assertNotIn(COLORS["accent"].lower(), [t.lower() for t in tints(COLORS["accent"])])
+
+    def test_tints_follow_the_theme(self):
+        self.assertNotEqual(tints("#89b4fa"), tints("#f38ba8"))
+
+    def test_every_tint_is_a_hex_colour(self):
+        for t in tints(COLORS["accent"]):
+            self.assertRegex(t, r"^#[0-9a-f]{6}$")
+
+    def test_a_broken_accent_does_not_crash_the_ui(self):
+        for bad in ("", "nope", "#12", "#gggggg", None, 42):
+            self.assertEqual(len(tints(bad)), AGENT_TINTS)
+
+    def test_css_carries_a_class_per_tint(self):
+        out = css(COLORS)
+        for i in range(AGENT_TINTS):
+            self.assertIn(f".hivemind-bubble-agent.tint-{i}", out)
+            self.assertIn(f".hivemind-author.tint-{i}", out)

@@ -1,5 +1,7 @@
 from gi.repository import Adw, GLib, Gtk, Pango
 
+from hivemind.ui import a11y
+
 
 COLUMNS = [("todo", "Por hacer"), ("doing", "En curso"), ("done", "Listo")]
 ORDER = [c for c, _ in COLUMNS]
@@ -33,6 +35,9 @@ class BoardView(Gtk.Box):
         self.append(cols)
         self.tasks = []
 
+    EMPTY = {"todo": "Nada pendiente.", "doing": "Nadie trabajando en algo.",
+             "done": "Todavía nada terminado."}
+
     def load(self, tasks):
         self.tasks = tasks
         for cards in self.columns.values():
@@ -40,6 +45,11 @@ class BoardView(Gtk.Box):
                 cards.remove(child)
         for t in tasks:
             self.columns[t["status"]].append(self._card(t))
+        for status, cards in self.columns.items():  # a blank column says nothing
+            if cards.get_first_child() is None:
+                empty = Gtk.Label(label=self.EMPTY[status], xalign=0, wrap=True, margin_top=8)
+                empty.add_css_class("dim-label")
+                cards.append(empty)
 
     def _move(self, t, delta):
         i = ORDER.index(t["status"]) + delta
@@ -64,7 +74,7 @@ class BoardView(Gtk.Box):
             b = Gtk.Button(label=text, sensitive=0 <= ORDER.index(t["status"]) + delta < len(ORDER))
             b.connect("clicked", lambda _b, d=delta: self._move(t, d))
             row.append(b)
-        menu = Gtk.MenuButton(icon_name="view-more-symbolic", tooltip_text="Asignar o borrar")
+        menu = a11y.icon_button(Gtk.MenuButton(icon_name="view-more-symbolic"), "Asignar o borrar")
         pop = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, margin_top=6, margin_bottom=6,
                       margin_start=6, margin_end=6)
         for agent_id, label in [(None, "Sin asignar")] + [(a["id"], a["name"]) for a in self.window.agents]:

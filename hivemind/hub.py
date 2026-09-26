@@ -200,7 +200,7 @@ class Hub:
             raise ValueError(f"La carpeta {cwd} no existe.")
         return cwd
 
-    def create_agent(self, name, role, cwd=None, model=None):
+    def create_agent(self, name, role, cwd=None, model=None, brief=""):
         self._check_model(model)
         if not NAME_RE.match(name or ""):
             raise ValueError("El nombre solo puede tener letras, números, guiones y guiones bajos.")
@@ -211,7 +211,7 @@ class Hub:
         if any(a["name"].casefold() == name.casefold() for a in self.store.agents()):
             raise ValueError(f"Ya existe un agente llamado «{name}».")
         try:
-            agent = self.store.create_agent(name, role, cwd, model)
+            agent = self.store.create_agent(name, role, cwd, model, (brief or "").strip())
         except sqlite3.IntegrityError:
             raise ValueError(f"Ya existe un agente llamado «{name}».") from None
         self.statuses[agent["id"]] = "idle"
@@ -227,6 +227,8 @@ class Hub:
         if "model" in changes:
             self._check_model(changes["model"])
             fields["model"] = changes["model"]
+        if "brief" in changes:
+            fields["brief"] = (changes["brief"] or "").strip()
         if changes.get("cwd"):
             cwd = self._check_cwd(changes["cwd"])
             if cwd != agent["cwd"]:
@@ -260,6 +262,12 @@ class Hub:
         if self.config.get("auth") == "api_key" and self.config.get("api_key"):
             return {"ANTHROPIC_API_KEY": self.config["api_key"]}
         return None
+
+    def automation_allowed(self):
+        """Unattended turns need an API key: the Consumer Terms allow automated access only
+        that way, and Pro/Max limits assume ordinary, individual use. On a subscription a
+        routine waits for one human click instead."""
+        return self._env() is not None
 
     async def delete_agent(self, agent_id):
         await self.stop(agent_id)

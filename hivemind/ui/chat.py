@@ -3,6 +3,8 @@ from pathlib import Path
 
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango
 
+from hivemind.ui import a11y
+
 from hivemind.ui import theme
 from hivemind.ui.composer import Composer
 from hivemind.ui.markdown import segments
@@ -17,9 +19,11 @@ def _label(markup, css=None):
     return lbl
 
 
-def _bubble(text, css, mentions=None):
+def _bubble(text, css, mentions=None, tint=None):
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
     box.add_css_class(css)
+    if tint is not None:
+        box.add_css_class(f"tint-{tint}")
     for seg in segments(text, mentions=mentions, mention_color=theme.colors()["accent"]):
         if seg[0] == "text":
             box.append(_label(seg[1]))
@@ -74,11 +78,12 @@ def _attachment(entry):
 
 
 class ChatView(Gtk.Box):
-    def __init__(self, client, thread, names, members=None, on_error=None):
+    def __init__(self, client, thread, names, members=None, on_error=None, tint=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.on_error = on_error or (lambda res, err: None)
         self.attachment_widgets = []
         self.client, self.thread, self.names = client, thread, names
+        self.tint = tint or (lambda _agent_id: None)
         self.members = members or (lambda: [])  # names that "@" can complete in this conversation
         self.is_group = thread == "group" or thread.startswith("g-")
         self.tools = {}       # tool_use_id -> Gtk.Expander
@@ -101,11 +106,16 @@ class ChatView(Gtk.Box):
             self.entry.add_files([f.get_path() for f in files.get_files() if f.get_path()]), True)[1])
         self.add_controller(drop)
         if not self.is_group:
-            self.stop_btn = Gtk.Button(icon_name="media-playback-stop-symbolic", tooltip_text="Detener")
+            self.stop_btn = a11y.icon_button(
+                Gtk.Button(icon_name="media-playback-stop-symbolic", valign=Gtk.Align.END), "Detener")
+            self.stop_btn.add_css_class("hivemind-composer-button")
+            self.entry.match_height(self.stop_btn)
             self.stop_btn.connect("clicked", lambda *_: client.call("stop", {"agent": thread}))
             bar.append(self.stop_btn)
-        send = Gtk.Button(icon_name="mail-send-symbolic", tooltip_text="Enviar")
+        send = a11y.icon_button(Gtk.Button(icon_name="mail-send-symbolic", valign=Gtk.Align.END), "Enviar")
         send.add_css_class("suggested-action")
+        send.add_css_class("hivemind-composer-button")
+        self.entry.match_height(send)
         send.connect("clicked", self._send)
         bar.append(send)
         self.append(bar)
@@ -156,16 +166,23 @@ class ChatView(Gtk.Box):
             self._attachments(col, m, Gtk.Align.END)
             self.list.append(col)
         else:
-            col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, halign=Gtk.Align.START)
+            tint = self.tint(m["author"])
+            col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, halign=Gtk.Align.FILL)
             if self.is_group:
                 who = Gtk.Box(spacing=6)
                 bee = Gtk.Image(icon_name="hivemind-bee-up-symbolic", pixel_size=22)
-                bee.add_css_class("hivemind-bee-queued")
+                bee.add_css_class("hivemind-bee")
+                author = _label(GLib.markup_escape_text(self.names.get(m["author"], "?")), "hivemind-author")
+                if tint is not None:
+                    bee.add_css_class(f"tint-{tint}")
+                    author.add_css_class(f"tint-{tint}")
                 who.append(bee)
-                who.append(_label(GLib.markup_escape_text(self.names.get(m["author"], "?")), "hivemind-author"))
+                who.append(author)
                 col.append(who)
             if m["content"]:
-                col.append(_bubble(m["content"], "hivemind-bubble-agent", self.names.values()))
+                bubble = _bubble(m["content"], "hivemind-bubble-agent", self.names.values(), tint)
+                bubble.set_hexpand(True)  # every agent bubble the same width: no ragged right edge
+                col.append(bubble)
             self._attachments(col, m, Gtk.Align.START)
             self.list.append(col)
         self._scroll_end()
@@ -225,8 +242,10 @@ class ChatView(Gtk.Box):
             self._message(ev["message"])
         elif t == "delta" and ev["thread"] == self.thread:
             if self.live is None:
-                self.live = Gtk.Label(wrap=True, xalign=0, halign=Gtk.Align.START)
+                self.live = Gtk.Label(wrap=True, xalign=0, halign=Gtk.Align.FILL, hexpand=True)
                 self.live.add_css_class("hivemind-bubble-agent")
+                if (tint := self.tint(self.thread)) is not None:
+                    self.live.add_css_class(f"tint-{tint}")
                 self.list.append(self.live)
             self.live.set_label(self.live.get_label() + ev["text"])
             self._scroll_end()

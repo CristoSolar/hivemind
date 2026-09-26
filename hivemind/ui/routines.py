@@ -1,6 +1,8 @@
 from gi.repository import Adw, Gtk
 
-from hivemind.schedule import DAYS, describe, short_when
+from hivemind.ui import a11y
+
+from hivemind.schedule import DAYS, ago, describe, short_when
 
 KINDS = [("every_hours", "Cada N horas"), ("daily", "Todos los días"), ("weekly", "Días de la semana")]
 
@@ -18,6 +20,10 @@ class RoutinesView(Gtk.Box):
         bar.append(title)
         bar.append(add)
         self.append(bar)
+        # On a subscription a routine does not fire itself: it waits for one click here.
+        self.notice = Adw.Banner(title="Con tu suscripción las rutinas te avisan y las corres tú. "
+                                       "Con una API key corren solas.")
+        self.append(self.notice)
         self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, margin_start=16, margin_end=16)
         self.list.add_css_class("hivemind-cards")
         self.append(Gtk.ScrolledWindow(vexpand=True, child=self.list, hscrollbar_policy=Gtk.PolicyType.NEVER))
@@ -31,6 +37,7 @@ class RoutinesView(Gtk.Box):
 
     def load(self, routines):
         self.routines = routines
+        self.notice.set_revealed(bool(routines) and self.window.auth != "api_key")
         self.list.remove_all()
         if not routines:
             empty = Gtk.Label(label="Aún no hay rutinas. Crea una con «+ Rutina».", margin_top=24)
@@ -45,8 +52,10 @@ class RoutinesView(Gtk.Box):
         name = Gtk.Label(label=r["name"], xalign=0)
         name.add_css_class("heading")
         texts.append(name)
-        sub = Gtk.Label(xalign=0, wrap=True, label=f"{describe(r['schedule'])} · {self._target_name(r['target'])}"
-                        f" · próxima: {short_when(r['next_run']) if r['enabled'] else 'pausada'}")
+        when = (f"⏳ te espera desde {ago(r['due_since'])}" if r.get("due_since") and r["enabled"]
+                else f"próxima: {short_when(r['next_run'])}" if r["enabled"] else "pausada")
+        sub = Gtk.Label(xalign=0, wrap=True,
+                        label=f"{describe(r['schedule'])} · {self._target_name(r['target'])} · {when}")
         sub.add_css_class("dim-label")
         texts.append(sub)
         box.append(texts)
@@ -54,13 +63,19 @@ class RoutinesView(Gtk.Box):
         switch.connect("notify::active", lambda s, _p: self.client.call(
             "update_routine", {"routine": r["id"], "enabled": s.get_active()}, self.window._toast_error))
         box.append(switch)
-        for icon, tip, fn in (("media-playback-start-symbolic", "Correr ahora",
-                               lambda *_: self.client.call("run_routine_now", {"routine": r["id"]},
-                                                           self.window._toast_error)),
-                              ("document-edit-symbolic", "Editar", lambda *_: self._dialog(r)),
-                              ("user-trash-symbolic", "Borrar", lambda *_: self.client.call(
-                                  "delete_routine", {"routine": r["id"]}, self.window._toast_error))):
-            b = Gtk.Button(icon_name=icon, tooltip_text=tip, valign=Gtk.Align.CENTER)
+        waiting = bool(r.get("due_since")) and r["enabled"]
+        actions = [("media-playback-start-symbolic", "Correr ahora", lambda *_: self.client.call(
+            "run_routine_now", {"routine": r["id"]}, self.window._toast_error))]
+        if waiting:
+            actions.append(("edit-clear-symbolic", "Saltar esta vez", lambda *_: self.client.call(
+                "skip_routine", {"routine": r["id"]}, self.window._toast_error)))
+        actions += [("document-edit-symbolic", "Editar", lambda *_: self._dialog(r)),
+                    ("user-trash-symbolic", "Borrar", lambda *_: self.client.call(
+                        "delete_routine", {"routine": r["id"]}, self.window._toast_error))]
+        for icon, tip, fn in actions:
+            b = a11y.icon_button(Gtk.Button(icon_name=icon, valign=Gtk.Align.CENTER), tip)
+            if waiting and icon.startswith("media-playback"):
+                b.add_css_class("suggested-action")  # the one button that is waiting for you
             b.connect("clicked", fn)
             box.append(b)
         return box

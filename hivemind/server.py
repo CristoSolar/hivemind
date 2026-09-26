@@ -23,9 +23,9 @@ async def _dispatch(hub, method, p, client=None):
         hub.approve(p["approval"], p["decision"])
         return True
     if method == "create_agent":
-        return hub.create_agent(p["name"], p["role"], p.get("cwd"), p.get("model"))
+        return hub.create_agent(p["name"], p["role"], p.get("cwd"), p.get("model"), p.get("brief", ""))
     if method == "update_agent":
-        changes = {k: p[k] for k in ("model", "cwd") if k in p}
+        changes = {k: p[k] for k in ("model", "cwd", "brief") if k in p}
         return hub.update_agent(p["agent"], **changes)
     if method == "get_settings":
         return hub.settings()
@@ -46,6 +46,9 @@ async def _dispatch(hub, method, p, client=None):
         return True
     if method == "run_routine_now":
         await hub.routines.run_now(p["routine"])
+        return True
+    if method == "skip_routine":
+        hub.routines.skip(p["routine"])
         return True
     if method == "list_tasks":
         return hub.board.list(p.get("status"))

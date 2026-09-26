@@ -5,6 +5,8 @@ from pathlib import Path
 
 from gi.repository import Gdk, Gtk, Pango
 
+from hivemind.ui import a11y
+
 from hivemind.ui import theme
 from hivemind.ui.mention import complete, mention_at
 
@@ -35,8 +37,15 @@ class Composer(Gtk.Box):
         self.hint.add_css_class("dim-label")
         overlay = Gtk.Overlay(child=self.scroll, hexpand=True)
         overlay.add_overlay(self.hint)
-        attach = Gtk.Button(icon_name="mail-attachment-symbolic", tooltip_text="Adjuntar archivos",
-                            valign=Gtk.Align.END)
+        attach = a11y.icon_button(
+            Gtk.Button(icon_name="mail-attachment-symbolic", valign=Gtk.Align.END), "Adjuntar archivos")
+        attach.add_css_class("hivemind-composer-button")
+        # The buttons beside the box are squares as tall as it is on its first line, so the row
+        # reads as one band. Measured rather than hardcoded, so it follows the theme's font size,
+        # and measured on "map": before that the widget has no display and the CSS is not applied.
+        self._row_height = 0
+        self._matched = [attach]
+        self.connect("map", self._match_heights)
         attach.connect("clicked", self._pick_files)
         row = Gtk.Box(spacing=6)
         row.append(attach)
@@ -100,12 +109,29 @@ class Composer(Gtk.Box):
             chip.add_css_class("hivemind-attachment")
             chip.append(Gtk.Label(label=Path(path).name, ellipsize=Pango.EllipsizeMode.MIDDLE,
                                   max_width_chars=24))
-            remove = Gtk.Button(icon_name="window-close-symbolic", tooltip_text="Quitar")
+            remove = a11y.icon_button(Gtk.Button(icon_name="window-close-symbolic"), "Quitar")
             remove.add_css_class("flat")
             remove.connect("clicked", lambda _b, p=path: self.remove_file(p))
             chip.append(remove)
             self.chips.append(chip)
         self.chips.set_visible(bool(self.files))
+
+    def match_height(self, widget):
+        """Keep `widget` the same square size as the composer's first line."""
+        self._matched.append(widget)
+        if self._row_height:
+            widget.set_size_request(self._row_height, self._row_height)
+
+    def _match_heights(self, *_):
+        if self._row_height:  # measured once, while the box still holds a single line
+            return
+        # [1] is the natural height: a ScrolledWindow's minimum is tiny, it can always scroll.
+        height = self.scroll.measure(Gtk.Orientation.VERTICAL, -1)[1]
+        if height <= 0:
+            return
+        self._row_height = height
+        for w in self._matched:
+            w.set_size_request(height, height)
 
     def _pick_files(self, *_):
         dialog = Gtk.FileDialog(title="Adjuntar archivos", modal=True)

@@ -41,9 +41,13 @@ class Turn:
         return PermissionResultAllow()
 
     def _prompt(self):
+        # The role says what the job is; the brief says how this particular agent does it, so it
+        # goes last: two agents can share a role and still work differently.
+        brief = (self.agent.get("brief") or "").strip()
         return (f"{self.role['system_prompt']}\n\nTe llamas {self.agent['name']} en HiveMind. Hay un tablero "
                 "compartido de tareas (herramientas tablero_listar, tablero_crear, tablero_mover y "
-                "tablero_asignar): úsalo para coordinar trabajo de varios pasos con los demás agentes.")
+                "tablero_asignar): úsalo para coordinar trabajo de varios pasos con los demás agentes."
+                + (f"\n\nInstrucciones propias de {self.agent['name']}:\n{brief}" if brief else ""))
 
     def _reads_an_attachment(self, tool, input):
         """Reading files attached to *this* conversation never needs approval. The path must be

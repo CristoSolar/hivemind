@@ -2,6 +2,8 @@ import os
 
 from gi.repository import Adw, Gio, Gtk, Pango
 
+from hivemind.ui import a11y
+
 MODELS = [(None, "Predeterminado"), ("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku")]
 
 
@@ -11,8 +13,10 @@ def model_label(model):
 
 def _row(title, widget):
     box = Gtk.Box(spacing=12)
-    box.append(Gtk.Label(label=title, xalign=0, width_chars=10))
+    caption = Gtk.Label(label=title, xalign=0, width_chars=10)
+    box.append(caption)
     widget.set_hexpand(True)
+    a11y.describes(caption, widget)
     box.append(widget)
     return box
 
@@ -66,6 +70,17 @@ def agent_dialog(parent, roles, on_done, agent=None):
     box.append(_row("Modelo", model))
     folder = FolderButton(parent, agent["cwd"] if editing else None)
     box.append(_row("Proyecto", folder))
+    brief = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD, top_margin=6, bottom_margin=6,
+                         left_margin=6, right_margin=6)
+    brief.get_buffer().set_text(agent.get("brief", "") if editing else "")
+    brief.set_size_request(-1, 90)
+    box.append(_row("Estilo", Gtk.Frame(child=brief)))
+    hint = Gtk.Label(xalign=0, wrap=True, label="Opcional. Cómo trabaja este agente en particular: "
+                     "de qué se encarga, qué criterio usa. Dos agentes del mismo rol pueden "
+                     "trabajar distinto.")
+    hint.add_css_class("dim-label")
+    hint.add_css_class("caption")
+    box.append(hint)
     if editing:
         note = Gtk.Label(label="Cambiar la carpeta reinicia la conversación del agente.",
                          xalign=0, wrap=True)
@@ -75,11 +90,15 @@ def agent_dialog(parent, roles, on_done, agent=None):
     dialog.add_response("cancel", "Cancelar")
     dialog.add_response("ok", "Guardar" if editing else "Crear")
     dialog.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
+    dialog.set_default_response("ok")
+    dialog.set_close_response("cancel")
 
     def done(_d, response):
         if response != "ok":
             return
-        params = {"model": MODELS[model.get_selected()][0]}
+        buf = brief.get_buffer()
+        params = {"model": MODELS[model.get_selected()][0],
+                  "brief": buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False).strip()}
         if folder.path:
             params["cwd"] = folder.path
         if not editing:
@@ -101,12 +120,19 @@ def preferences_dialog(parent, settings, on_done):
         "Guardada. Déjala vacía para mantenerla" if settings["has_api_key"] else "sk-ant-…"))
     entry.set_sensitive(key.get_active())
     key.connect("toggled", lambda b: entry.set_sensitive(b.get_active()))
-    for w in (sub, key, entry):
+    hint = Gtk.Label(xalign=0, wrap=True, label="Las rutinas corren sin ti delante. Los términos de "
+                     "Anthropic cubren ese uso automatizado con una API key; los límites de Pro y Max "
+                     "suponen uso individual ordinario.")
+    hint.add_css_class("dim-label")
+    hint.add_css_class("caption")
+    for w in (sub, key, entry, hint):
         box.append(w)
     dialog.set_extra_child(box)
     dialog.add_response("cancel", "Cancelar")
     dialog.add_response("ok", "Guardar")
     dialog.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
+    dialog.set_default_response("ok")
+    dialog.set_close_response("cancel")
 
     def done(_d, response):
         if response != "ok":
@@ -140,6 +166,8 @@ def group_dialog(parent, agents, on_done, group=None):
     dialog.add_response("cancel", "Cancelar")
     dialog.add_response("ok", "Guardar" if group else "Crear")
     dialog.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
+    dialog.set_default_response("ok")
+    dialog.set_close_response("cancel")
 
     def done(_d, response):
         if response == "ok":
@@ -154,5 +182,6 @@ def confirm(parent, heading, body, action, on_yes):
     dialog.add_response("cancel", "Cancelar")
     dialog.add_response("yes", action)
     dialog.set_response_appearance("yes", Adw.ResponseAppearance.DESTRUCTIVE)
+    dialog.set_close_response("cancel")  # Escape cancels; a destructive action is never the default
     dialog.connect("response", lambda _d, r: r == "yes" and on_yes())
     dialog.present(parent)

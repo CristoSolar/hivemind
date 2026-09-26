@@ -7,7 +7,7 @@ SCHEMA = """
 create table if not exists agents(
   id text primary key, name text not null unique collate nocase, role text not null,
   cwd text not null, session_id text, extra_allowed text not null default '[]',
-  created_at real not null);
+  brief text not null default '', created_at real not null);
 create table if not exists messages(
   id integer primary key, thread text not null, author text not null,
   kind text not null, content text not null, ts real not null);
@@ -19,7 +19,7 @@ create table if not exists kv(key text primary key, value text not null);
 create table if not exists routines(
   id text primary key, name text not null, target text not null, prompt text not null,
   schedule text not null, enabled integer not null default 1, last_run real,
-  next_run real not null, created_at real not null);
+  next_run real not null, created_at real not null, due_since real);
 create table if not exists tasks(
   id text primary key, title text not null, description text not null default '',
   status text not null default 'todo', assignee text, created_by text not null,
@@ -48,10 +48,17 @@ class Store:
         if "model" not in columns:  # databases created before per-agent models
             with self.db:
                 self.db.execute("alter table agents add column model text")
+        if "brief" not in columns:  # databases created before per-agent briefs
+            with self.db:
+                self.db.execute("alter table agents add column brief text not null default ''")
         message_columns = {r["name"] for r in self.db.execute("pragma table_info(messages)")}
         if "attachments" not in message_columns:  # databases created before attachments
             with self.db:
                 self.db.execute("alter table messages add column attachments text not null default '[]'")
+        routine_columns = {r["name"] for r in self.db.execute("pragma table_info(routines)")}
+        if "due_since" not in routine_columns:  # databases created before routines could wait
+            with self.db:
+                self.db.execute("alter table routines add column due_since real")
         # Memory used to live on the agent row: it becomes the private chat's session, once.
         # Running this on every start would resurrect memory the user has since cleared.
         if self.get("sessions_migrated") is None:
@@ -67,17 +74,17 @@ class Store:
         d["extra_allowed"] = json.loads(d["extra_allowed"])
         return d
 
-    def create_agent(self, name, role, cwd, model=None):
+    def create_agent(self, name, role, cwd, model=None, brief=""):
         a = {"id": _new_id(), "name": name, "role": role, "cwd": cwd, "model": model,
-             "session_id": None, "created_at": time.time()}
+             "session_id": None, "brief": brief, "created_at": time.time()}
         with self.db:
             self.db.execute(
-                "insert into agents(id, name, role, cwd, model, session_id, created_at)"
-                " values(:id, :name, :role, :cwd, :model, :session_id, :created_at)", a)
+                "insert into agents(id, name, role, cwd, model, session_id, brief, created_at)"
+                " values(:id, :name, :role, :cwd, :model, :session_id, :brief, :created_at)", a)
         return self.agent(a["id"])
 
     def update_agent(self, id, **fields):
-        unknown = set(fields) - {"model", "cwd", "session_id"}
+        unknown = set(fields) - {"model", "cwd", "session_id", "brief"}
         if unknown:
             raise ValueError(f"Campos desconocidos: {unknown}")
         with self.db:
@@ -189,7 +196,7 @@ class Store:
         return self._routine(self.db.execute("select * from routines where id = ?", (id,)).fetchone())
 
     def update_routine(self, id, **fields):
-        allowed = {"name", "target", "prompt", "schedule", "enabled", "last_run", "next_run"}
+        allowed = {"name", "target", "prompt", "schedule", "enabled", "last_run", "next_run", "due_since"}
         if set(fields) - allowed:
             raise ValueError(f"Campos desconocidos: {set(fields) - allowed}")
         if "schedule" in fields:

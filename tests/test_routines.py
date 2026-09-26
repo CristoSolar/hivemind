@@ -11,6 +11,9 @@ def ts(*args):
 
 
 class RoutinesTest(unittest.IsolatedAsyncioTestCase):
+    # An API key is the account that may run unattended turns; see Hub.automation_allowed.
+    CONFIG = {"auth": "api_key", "api_key": "sk-test"}
+
     def setUp(self):
         FakeTurn.replies, FakeTurn.log, FakeTurn.gate = {}, [], None
         self.store = Store(":memory:")
@@ -18,7 +21,8 @@ class RoutinesTest(unittest.IsolatedAsyncioTestCase):
         self.notes = []
         self.hub = Hub(self.store, ROLES, turn_factory=FakeTurn,
                        meminfo=lambda: {"MemTotal": 32 * GB, "MemAvailable": 24 * GB},
-                       notifier=lambda t, b: self.notes.append(t), save_config=lambda c: None)
+                       notifier=lambda t, b: self.notes.append(t), save_config=lambda c: None,
+                       config=self.CONFIG)
         self.agent = self.hub.create_agent("Hori", "dev")
 
     def test_create_validates_and_computes_next_run(self):
@@ -95,3 +99,63 @@ class RoutinesTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SubscriptionRoutinesTest(RoutinesTest):
+    """On a subscription a routine never fires itself: it waits for one human click."""
+
+    CONFIG = {"auth": "subscription"}
+
+    # inherited scheduling tests assume automation; only the waiting behaviour is checked here
+    async def test_missed_routine_runs_once_then_resumes(self):
+        pass
+
+    async def test_due_routine_waits_instead_of_running(self):
+        r = self.hub.routines.create("Resumen", self.agent["id"], "resume", {"every_hours": 1},
+                                     now=ts(2026, 9, 25, 8, 0))
+        await self.hub.routines.tick(now=ts(2026, 9, 25, 9, 1))
+        await self.hub.drain()
+        self.assertEqual(FakeTurn.log, [])
+        got = self.store.routine(r["id"])
+        self.assertEqual(got["due_since"], ts(2026, 9, 25, 9, 1))
+        self.assertEqual(got["next_run"], ts(2026, 9, 25, 10, 1))
+        self.assertEqual(self.notes, ["«Resumen» te espera"])
+
+    async def test_days_away_leave_one_pending_run(self):
+        r = self.hub.routines.create("Resumen", self.agent["id"], "resume", {"every_hours": 1},
+                                     now=ts(2026, 9, 25, 8, 0))
+        for hour in range(9, 20):  # away all day; the routine comes due every hour
+            await self.hub.routines.tick(now=ts(2026, 9, 25, hour, 1))
+        await self.hub.drain()
+        self.assertEqual(self.store.routine(r["id"])["due_since"], ts(2026, 9, 25, 9, 1))
+        self.assertEqual(len(self.notes), 1, "one notification, not one per missed slot")
+        self.assertEqual(len(self.hub.routines.pending()), 1)
+
+    async def test_clicking_run_clears_the_wait(self):
+        r = self.hub.routines.create("Resumen", self.agent["id"], "resume", {"every_hours": 1},
+                                     now=ts(2026, 9, 25, 8, 0))
+        await self.hub.routines.tick(now=ts(2026, 9, 25, 9, 1))
+        await self.hub.routines.run_now(r["id"])
+        await self.hub.drain()
+        self.assertEqual([x for x in FakeTurn.log if x[1] == "start"], [("Hori", "start")])
+        self.assertIsNone(self.store.routine(r["id"])["due_since"])
+        self.assertEqual(self.hub.routines.pending(), [])
+
+    async def test_pending_survives_a_restart(self):
+        self.hub.routines.create("Resumen", self.agent["id"], "resume", {"every_hours": 1},
+                                 now=ts(2026, 9, 25, 8, 0))
+        await self.hub.routines.tick(now=ts(2026, 9, 25, 9, 1))
+        self.notes.clear()  # the toast is long gone; the database mark is not
+        self.hub.routines.notify_pending()
+        self.assertEqual(self.notes, ["1 rutina(s) esperan tu OK"])
+
+    async def test_skipping_drops_the_pending_run(self):
+        r = self.hub.routines.create("Resumen", self.agent["id"], "resume", {"every_hours": 1},
+                                     now=ts(2026, 9, 25, 8, 0))
+        await self.hub.routines.tick(now=ts(2026, 9, 25, 9, 1))
+        self.hub.routines.skip(r["id"])
+        await self.hub.drain()
+        self.assertEqual(FakeTurn.log, [])
+        got = self.store.routine(r["id"])
+        self.assertIsNone(got["due_since"])
+        self.assertEqual(got["next_run"], ts(2026, 9, 25, 10, 1), "the next slot still stands")

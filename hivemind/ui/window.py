@@ -2,6 +2,8 @@ import os
 
 from gi.repository import Adw, Gtk, Pango
 
+from hivemind.ui import a11y, theme
+
 from hivemind.ui.board import BoardView
 from hivemind.ui.chat import ChatView
 from hivemind.ui.client import Client
@@ -23,6 +25,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.routines, self.tasks, self.groups = [], [], []
         self.activities, self.last_active, self.bees = {}, {}, {}
         self.views, self.unread = {}, {}
+        self.auth = "subscription"
         self.client = Client(self._on_event, self._on_state)
 
         self.sidebar_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
@@ -33,7 +36,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         side_tb = Adw.ToolbarView()
         side_hb = Adw.HeaderBar(show_start_title_buttons=False, show_end_title_buttons=False)
-        add = Gtk.MenuButton(icon_name="list-add-symbolic", tooltip_text="Nuevo agente o grupo")
+        add = a11y.icon_button(Gtk.MenuButton(icon_name="list-add-symbolic"), "Nuevo agente o grupo")
         menu = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, margin_top=6, margin_bottom=6,
                        margin_start=6, margin_end=6)
         for label, handler in (("Nuevo agente", self._new_agent), ("Nuevo grupo", self._new_group)):
@@ -43,7 +46,7 @@ class MainWindow(Adw.ApplicationWindow):
             menu.append(item)
         add.set_popover(Gtk.Popover(child=menu))
         side_hb.pack_start(add)
-        prefs = Gtk.Button(icon_name="open-menu-symbolic", tooltip_text="Preferencias")
+        prefs = a11y.icon_button(Gtk.Button(icon_name="open-menu-symbolic"), "Preferencias")
         prefs.connect("clicked", self._preferences)
         side_hb.pack_end(prefs)
         side_tb.add_top_bar(side_hb)
@@ -54,14 +57,14 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.stack = Gtk.Stack()
         self.content_hb = Adw.HeaderBar(show_start_title_buttons=False, show_end_title_buttons=False)
-        self.delete_btn = Gtk.Button(icon_name="user-trash-symbolic", tooltip_text="Borrar", visible=False)
+        self.delete_btn = a11y.icon_button(Gtk.Button(icon_name="user-trash-symbolic", visible=False), "Borrar")
         self.delete_btn.connect("clicked", self._delete_current)
         self.content_hb.pack_end(self.delete_btn)
-        self.settings_btn = Gtk.Button(icon_name="emblem-system-symbolic", tooltip_text="Ajustes", visible=False)
+        self.settings_btn = a11y.icon_button(Gtk.Button(icon_name="emblem-system-symbolic", visible=False), "Ajustes")
         self.settings_btn.connect("clicked", self._edit_current)
         self.content_hb.pack_end(self.settings_btn)
-        self.clear_btn = Gtk.Button(icon_name="edit-clear-all-symbolic", tooltip_text="Limpiar conversación",
-                                    visible=False)
+        self.clear_btn = a11y.icon_button(
+            Gtk.Button(icon_name="edit-clear-all-symbolic", visible=False), "Limpiar conversación")
         self.clear_btn.connect("clicked", self._clear_current)
         self.content_hb.pack_end(self.clear_btn)
         self.banner = Adw.Banner(title="Daemon detenido", button_label="Iniciar")
@@ -111,6 +114,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.routines, self.tasks = snap.get("routines", []), snap.get("tasks", [])
         self.groups = snap.get("groups", [])
         self.activities, self.last_active = snap.get("activities", {}), snap.get("last_active", {})
+        self.auth = snap.get("settings", {}).get("auth", "subscription")
         self._set_capacity(snap["capacity"])
         self._rebuild_sidebar()
         for thread, view in self.views.items():
@@ -123,6 +127,15 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _names(self):
         return {a["id"]: a["name"] for a in self.agents}
+
+    def tint_of(self, agent_id):
+        """The agent's colour slot. Agents come back in creation order, so the first
+        theme.AGENT_TINTS agents each get their own; after that two share a hue and the
+        name still tells them apart."""
+        for i, a in enumerate(self.agents):
+            if a["id"] == agent_id:
+                return i % theme.AGENT_TINTS
+        return 0
 
     # sidebar ----------------------------------------------------------------
     def _row(self, thread, title, subtitle):
@@ -188,7 +201,7 @@ class MainWindow(Adw.ApplicationWindow):
             else:
                 view = ChatView(self.client, thread, self._names(),
                                 members=lambda t=thread: [a["name"] for a in self._members(t)],
-                                on_error=self._toast_error)
+                                on_error=self._toast_error, tint=self.tint_of)
                 view.load(self.approvals)
             self.views[thread] = view
             self.stack.add_named(view, thread)
@@ -319,8 +332,14 @@ class MainWindow(Adw.ApplicationWindow):
         def opened(settings, err):
             if err:
                 return self._toast_error(None, err)
-            preferences_dialog(self, settings, lambda p: self.client.call("set_settings", p, lambda res, e: (
-                self._toast_error(res, e) if e else self.toast.add_toast(Adw.Toast(title="Preferencias guardadas")))))
+            def saved(res, e):
+                if e:
+                    return self._toast_error(res, e)
+                self.auth = res["auth"]
+                if "routines" in self.views:  # the account notice depends on it
+                    self.views["routines"].load(self.routines)
+                self.toast.add_toast(Adw.Toast(title="Preferencias guardadas"))
+            preferences_dialog(self, settings, lambda p: self.client.call("set_settings", p, saved))
         self.client.call("get_settings", None, opened)
 
     def _delete_current(self, *_):

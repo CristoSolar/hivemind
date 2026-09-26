@@ -31,6 +31,7 @@ aparte.
 - [Guía de uso](#guía-de-uso)
 - [Configuración](#configuración)
 - [Seguridad y privacidad](#seguridad-y-privacidad)
+  - [Tu cuenta de Anthropic](#tu-cuenta-de-anthropic)
 - [Solución de problemas](#solución-de-problemas)
 - [Desinstalar](#desinstalar)
 - [Desarrollo](#desarrollo)
@@ -42,14 +43,15 @@ aparte.
 
 | | |
 |---|---|
-| **Agentes con rol** | Crea agentes como «Dev», «Marketing» o «Sistema». Cada uno tiene su chat, su modelo (Opus, Sonnet o Haiku) y su carpeta de trabajo. |
+| **Agentes con rol** | Vienen ocho roles: **Desarrollo**, **Producto**, **Diseño (UI/UX)**, **QA**, **Datos**, **Soporte**, **Marketing** y **Sistema**. Cada agente tiene su chat, su modelo (Opus, Sonnet o Haiku) y su carpeta de trabajo. |
+| **Estilo por agente** | Además del rol, cada agente lleva un texto propio: de qué se encarga y con qué criterio. Dos agentes de Desarrollo pueden trabajar distinto — uno que decide rápido y ve backend, otro que va con calma y ve interfaz. |
 | **Chat grupal y grupos** | «Grupo» incluye a todos. Además creas grupos con los agentes que elijas (p. ej. «Lanzamiento» con Dev y Marketing). Menciona a uno con `@Nombre` o escribe a todos los integrantes; los agentes se mencionan entre ellos para pasarse trabajo. |
 | **Memoria por conversación** | Cada agente recuerda cada conversación por separado, así los grupos no se mezclan. Cuando habla en un grupo, recibe lo último de su chat privado contigo: si le preguntas «¿cómo va el desarrollo?», responde con lo que trabajaron. |
 | **Adjuntos** | Imágenes, documentos y audios, con 📎, arrastrando o pegando una captura (Ctrl+V). Los agentes ven las imágenes y leen PDF y texto; los audios se transcriben en tu equipo. |
 | **Limpiar** | «Limpiar» borra un grupo y hace que sus integrantes olviden ese tema (sus chats privados no cambian). «Nueva conversación» hace lo mismo con el chat privado de un agente. |
 | **Aprobaciones** | Lo que un agente no tiene permitido de antemano aparece como tarjeta: **Permitir**, **Denegar** o **Permitir siempre** (la tarjeta muestra exactamente qué regla se guardaría). |
 | **En segundo plano** | Un servicio de usuario de systemd mantiene a los agentes trabajando con la ventana cerrada. Si algo necesita tu aprobación, te llega una notificación. |
-| **Rutinas** | Tareas programadas: «cada 3 horas», «todos los días 09:00» o «lunes y jueves 18:30». Si el equipo estaba apagado a la hora, la rutina corre una vez al volver. |
+| **Rutinas** | Tareas programadas: «cada 3 horas», «todos los días 09:00» o «lunes y jueves 18:30». Con **API key** corren solas; con **suscripción** te avisan y las lanzas con un clic. Si no estabas, la rutina te espera (una sola vez, no una por hora perdida). |
 | **Tablero** | Tres columnas (Por hacer, En curso, Listo). Los agentes crean, mueven y se asignan tareas solos. Tú también. Cada cambio queda registrado. |
 | **Barra de Omarchy** | Una abejita muestra si tus agentes piensan, trabajan, esperan o duermen. Desde su panel apruebas acciones y abres la ventana. |
 | **Se adapta a tu equipo** | Calcula cuántos agentes pueden trabajar a la vez según la RAM libre. Los demás esperan en cola. |
@@ -214,7 +216,10 @@ cada agente, en el orden de la barra lateral.
   tocan el tablero.
 - **Las rutinas.** El daemon revisa cada 30 segundos qué rutinas ya tocan. Cada una llega como
   un mensaje normal («⏰ Rutina «Resumen»: …»), así que respeta la cola, la RAM y las
-  aprobaciones.
+  aprobaciones. Con una **suscripción** la rutina no se dispara sola: queda marcada como
+  pendiente en la base de datos, te notifica y espera tu clic. Como el estado vive en la base y
+  no en la notificación, no se pierde nada si no estabas, y días sin aparecer dejan **una**
+  pendiente, no una por hora.
 
 ---
 
@@ -274,6 +279,11 @@ En **Rutinas → + Rutina**:
 Cada rutina se puede pausar con su interruptor o correr al instante con ▶. Si borras el
 agente de una rutina, esta se pausa y avisa en el grupo.
 
+Si tu cuenta es la **suscripción**, al llegar la hora la rutina no arranca sola: te llega una
+notificación, la abeja de la barra se pone en «esperando» y la rutina queda marcada
+«⏳ te espera desde hace…». La lanzas con ▶ o la descartas con **Saltar**, desde la ventana o
+desde el panel de la abeja. Con una **API key** corre sola, sin preguntarte.
+
 ### Tablero
 
 - **+ Tarea** crea una tarea, con un agente asignado si quieres.
@@ -309,8 +319,9 @@ auth = "subscription"  # o "api_key" (lo escribe Preferencias)
 
 ### Roles: `~/.config/hivemind/roles/*.toml`
 
-Se crean tres roles al instalar (`dev`, `marketing` y `sysadmin`), y puedes editarlos o
-agregar otros:
+Se crean ocho roles al instalar (`dev`, `producto`, `uiux`, `qa`, `datos`, `soporte`,
+`marketing` y `sysadmin`), y puedes editarlos o agregar otros — un archivo `.toml` nuevo en esa carpeta ya es un rol, sin
+tocar código:
 
 ```toml
 label = "Desarrollo"
@@ -327,6 +338,20 @@ cwd = "~/Repositorios"
 - Los agentes también cargan tu configuración normal de Claude Code (`~/.claude`, plugins,
   MCP, CLAUDE.md), así que los conectores de claude.ai (Gmail, Drive, Meta Ads…) quedan
   disponibles si los tienes activados.
+
+**¿Qué rol le pongo a cada cargo?** En
+[`docs/catalogo-de-cargos.md`](docs/catalogo-de-cargos.md) hay 49 cargos de startup —
+de Product Manager a SRE — con el rol que les toca y un estilo sugerido listo para pegar.
+
+**¿Rol o estilo?** La regla corta:
+
+| | Cuándo |
+|---|---|
+| **Rol nuevo** | Cuando cambian las *herramientas* o el *entregable*. QA necesita correr tests; Producto escribe especificaciones y no toca código. |
+| **Estilo** (campo del agente) | Cuando la pega es la misma pero cambia el criterio o el foco: «backend y base de datos, decide rápido» contra «interfaz, pregunta antes». |
+
+El estilo se escribe al crear el agente o después en su ⚙, y se agrega al final del prompt del
+rol. Cambiarlo **no** borra la memoria del agente: aplica desde el siguiente mensaje.
 
 ### Dónde vive cada cosa
 
@@ -351,6 +376,31 @@ cwd = "~/Repositorios"
   o lo que tú aprobaste con «Permitir siempre», y cada regla queda atada al comando exacto.
 - **La API key** queda en un archivo legible solo por ti y nunca sale del daemon.
 - **Sin root:** todo se instala en tu usuario.
+
+### Tu cuenta de Anthropic
+
+HiveMind corre el binario de Claude Code **sin modificarlo** y nunca toca tus credenciales: en
+modo suscripción no define ninguna variable de entorno, así que el CLI usa la sesión que ya
+iniciaste tú. En modo API key guarda **tu** clave en un archivo `0600` y solo se la pasa al
+proceso. HiveMind no vende, revende ni intermedia uso de Claude: cada quien trae su cuenta y
+Anthropic le cobra a esa cuenta.
+
+Por eso las rutinas se comportan distinto según la cuenta:
+
+> Los [Consumer Terms](https://www.anthropic.com/legal/consumer-terms) permiten el acceso
+> automatizado cuando entras con una **API key**, y la
+> [documentación de Claude Code](https://code.claude.com/docs/en/legal-and-compliance) dice que
+> los límites de Pro y Max "assume ordinary, individual usage".
+>
+> Con **API key**, una rutina corre sola a su hora. Con **suscripción**, no: te avisa y la
+> lanzas tú con un clic, así que cada ejecución la inicia una persona. Nadie pierde el feature
+> y nadie queda fuera de los términos.
+
+Distribuir HiveMind dentro de otro producto entra en
+["Can customers offer Claude Code in their products?"](https://code.claude.com/docs/en/legal-and-compliance)
+y exige aceptar los [Commercial Terms](https://www.anthropic.com/legal/commercial-terms).
+
+HiveMind no está hecho, respaldado ni patrocinado por Anthropic.
 
 ---
 

@@ -1,3 +1,4 @@
+import colorsys
 import tomllib
 from pathlib import Path
 
@@ -7,6 +8,28 @@ _FALLBACK = {"mode": "dark", "accent": "#89b4fa", "background": "#1e1e2e", "fore
              "lighter_background": "#313244", "dark_background": "#161622",
              "darker_background": "#101019", "muted": "#585b70", "red": "#f38ba8",
              "green": "#a6e3a1", "yellow": "#f9e2af"}
+
+
+AGENT_TINTS = 8  # distinct colours before two agents share one; the name still tells them apart
+
+
+def tints(accent, n=AGENT_TINTS):
+    """`n` hues spread around the wheel, keeping the theme accent's saturation and lightness.
+
+    Derived from the theme instead of hardcoded, so the tints follow an Omarchy theme switch and
+    stay as readable as the accent itself. None of them lands on the accent: that one means "you".
+    """
+    try:
+        r, g, b = (int(accent[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    except (ValueError, IndexError, TypeError):  # a theme file may hold anything
+        r, g, b = (int(_FALLBACK["accent"][i:i + 2], 16) / 255 for i in (1, 3, 5))
+    h, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
+    out = []
+    for i in range(n):
+        hue = (h + (i + 1) / (n + 1)) % 1.0
+        rr, gg, bb = colorsys.hls_to_rgb(hue, lightness, saturation)
+        out.append("#%02x%02x%02x" % (round(rr * 255), round(gg * 255), round(bb * 255)))
+    return out
 
 
 def font_size(path=SHELL_FILE):
@@ -52,6 +75,8 @@ entry {{ background: {c['dark_background']}; border: 2px solid {c['muted']}; bor
 entry:focus-within {{ border-color: {c['accent']}; }}
 .hivemind-attachment {{ background: {c['dark_background']}; border: 2px solid {c['muted']}; border-radius: 0; padding: 2px 8px; }}
 .hivemind-composer-frame {{ background: {c['dark_background']}; border: 2px solid {c['muted']}; border-radius: 0; }}
+/* Attach, stop and send sit beside the composer: same box, same bottom edge. */
+.hivemind-composer-button {{ padding: 0; }}
 .hivemind-composer-frame:focus-within {{ border-color: {c['accent']}; }}
 textview.hivemind-composer, textview.hivemind-composer text {{ background: {c['dark_background']}; color: {c['foreground']}; }}
 
@@ -76,6 +101,7 @@ dialog.alert sheet, dialog.alert .dialog-contents {{ background-color: {c['dark_
 dialog.alert sheet {{ border: 2px solid {c['accent']}; border-radius: 0; box-shadow: none; }}
 dropdown > button {{ background: transparent; }}
 popover > contents {{ background-color: {c['dark_background']}; border: 2px solid {c['muted']}; border-radius: 0; }}
+.hivemind-bee {{ color: {c['foreground']}; }}
 .hivemind-bee-idle {{ color: {c['muted']}; }}
 .hivemind-bee-queued {{ color: {c['foreground']}; }}
 .hivemind-bee-working, .hivemind-bee-tool, .hivemind-bee-thinking {{ color: {c['accent']}; }}
@@ -88,7 +114,19 @@ popover > contents {{ background-color: {c['dark_background']}; border: 2px soli
 .hivemind-dot-working {{ color: {c['green']}; }}
 .hivemind-dot-waiting {{ color: {c['yellow']}; }}
 .hivemind-dot-error {{ color: {c['red']}; }}
+
+/* One tint per agent, so a glance tells you who is speaking. */
+{_tint_css(c['accent'])}
 """
+
+
+def _tint_css(accent):
+    rules = []
+    for i, colour in enumerate(tints(accent)):
+        rules.append(f".hivemind-bubble-agent.tint-{i} {{ border-color: {colour}; }}")
+        rules.append(f".hivemind-author.tint-{i} {{ color: {colour}; }}")
+        rules.append(f".hivemind-bee.tint-{i} {{ color: {colour}; }}")
+    return "\n".join(rules)
 
 
 def _read():

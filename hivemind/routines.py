@@ -85,12 +85,20 @@ class Routines:
                            f"La rutina «{r['name']}» se pausó: su agente ya no existe.")
             self._changed()
             return
-        fields = {"last_run": now}
+        fields = {"last_run": now, "due_since": None}
         if reschedule:
             fields["next_run"] = self._next(r["schedule"], now)
         self.store.update_routine(r["id"], **fields)
         await self.hub.send(r["target"], f"⏰ Rutina «{r['name']}»: {r['prompt']}",
                             origin={"routine": r["name"]})
+        self._changed()
+
+    def skip(self, routine_id):
+        """Drop a pending run without firing it; the next slot is already scheduled."""
+        r = self.store.routine(routine_id)
+        if r is None:
+            raise ValueError("Esa rutina no existe.")
+        self.store.update_routine(routine_id, due_since=None)
         self._changed()
 
     async def run_now(self, routine_id):
@@ -99,8 +107,37 @@ class Routines:
             raise ValueError("Esa rutina no existe.")
         await self._fire(r, time.time(), reschedule=False)
 
+    def _defer(self, r, now):
+        """Subscription account: the routine waits for one click instead of running itself."""
+        if not self._target_exists(r["target"]):
+            self.store.update_routine(r["id"], enabled=False)
+            self.hub._post("group", "system", "system",
+                           f"La rutina «{r['name']}» se pausó: su agente ya no existe.")
+            self._changed()
+            return
+        fields = {"next_run": self._next(r["schedule"], now)}
+        if r["due_since"] is None:  # already waiting: one pending run, never a pile
+            fields["due_since"] = now
+            self.hub.notifier(f"«{r['name']}» te espera",
+                              "Ábrela en HiveMind y pulsa Correr.")
+        self.store.update_routine(r["id"], **fields)
+        self._changed()
+
+    def pending(self):
+        return [r for r in self.store.routines() if r["enabled"] and r["due_since"]]
+
+    def notify_pending(self):
+        """After a restart the notification is long gone; the mark in the database is not."""
+        waiting = self.pending()
+        if waiting:
+            names = ", ".join(f"«{r['name']}»" for r in waiting[:3])
+            self.hub.notifier(f"{len(waiting)} rutina(s) esperan tu OK", names)
+
     async def tick(self, now=None):
         now = now or time.time()
         for r in self.store.routines():
             if r["enabled"] and r["next_run"] <= now:
-                await self._fire(r, now, reschedule=True)
+                if self.hub.automation_allowed():
+                    await self._fire(r, now, reschedule=True)
+                else:
+                    self._defer(r, now)

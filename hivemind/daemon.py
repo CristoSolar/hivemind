@@ -13,6 +13,7 @@ async def _main():
     store = Store(str(paths.data_dir() / "hivemind.db"))
     hub = Hub(store, load_roles(paths.config_dir() / "roles"), config=paths.load_config())
     hub.expire_stale_approvals()
+    hub.routines.notify_pending()
     server = await serve(hub, str(paths.socket_path()))
     print(f"hivemind-daemon escuchando en {paths.socket_path()}", flush=True)
     async with server:

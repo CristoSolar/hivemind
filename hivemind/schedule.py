@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta
 
 DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
@@ -70,3 +71,20 @@ def short_when(ts):
         return "—"
     d = datetime.fromtimestamp(ts)
     return f"{DAYS[d.weekday()][:3].lower()} {d.day} {d:%H:%M}"
+
+
+def ago(ts, now=None):
+    """How long a routine has been waiting, in Spanish: "recién", "hace 3 h", "hace 2 días"."""
+    if not ts:
+        return "—"
+    seconds = max(0, (now or time.time()) - ts)
+    minutes = int(seconds // 60)
+    if minutes < 1:
+        return "recién"
+    if minutes < 60:
+        return f"hace {minutes} min"
+    hours = minutes // 60
+    if hours < 24:
+        return f"hace {hours} h"
+    days = hours // 24
+    return "hace 1 día" if days == 1 else f"hace {days} días"
