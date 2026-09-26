@@ -20,12 +20,13 @@ def _text_of(content):
 
 class Turn:
     def __init__(self, agent, role, prompt, emit, ask, model=None, env=None, mcp_servers=None,
-                 client_factory=ClaudeSDKClient):
+                 thread=None, client_factory=ClaudeSDKClient):
         self.agent, self.role, self.prompt = agent, role, prompt
         self.emit, self.ask = emit, ask
         self.model = agent.get("model") or model
         self.env = env
         self.mcp_servers = mcp_servers
+        self.thread = thread or agent["id"]  # attachments of this conversation are readable
         self.client_factory = client_factory
         self.client = None
         self.stopped = False
@@ -44,17 +45,19 @@ class Turn:
                 "compartido de tareas (herramientas tablero_listar, tablero_crear, tablero_mover y "
                 "tablero_asignar): úsalo para coordinar trabajo de varios pasos con los demás agentes.")
 
-    @staticmethod
-    def _reads_an_attachment(tool, input):
-        """Reading files attached to messages never needs approval. The path is resolved first,
-        so "adjuntos/../../etc" does not count as inside the folder."""
+    def _reads_an_attachment(self, tool, input):
+        """Reading files attached to *this* conversation never needs approval. The path must be
+        absolute and is resolved first, so "adjuntos/<thread>/../../etc" or a symlink out of the
+        folder does not count, and another chat's files still ask."""
         if tool != "Read" or not input.get("file_path"):
             return False
-        path = Path(input["file_path"]).expanduser().resolve()
-        return path.is_relative_to(attachments.root().resolve())
+        path = Path(input["file_path"]).expanduser()
+        if not path.is_absolute():
+            return False
+        return path.resolve().is_relative_to(attachments.folder(self.thread).resolve())
 
     def _options(self):
-        attachments.root().mkdir(parents=True, exist_ok=True)  # the CLI wants add_dirs to exist
+        attachments.folder(self.thread).mkdir(parents=True, exist_ok=True)  # the CLI wants add_dirs to exist
         return ClaudeAgentOptions(
             cwd=self.agent["cwd"],
             resume=self.agent["session_id"],
@@ -66,7 +69,7 @@ class Turn:
             setting_sources=["user", "project", "local"],
             env=self.env or {},
             mcp_servers=self.mcp_servers or {},
-            add_dirs=[str(attachments.root())],
+            add_dirs=[str(attachments.folder(self.thread))],
         )
 
     def _translate(self, m):

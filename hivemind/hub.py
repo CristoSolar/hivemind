@@ -82,6 +82,7 @@ class Hub:
     def _post(self, thread, author, kind, content, files=None):
         message = self.store.add_message(thread, author, kind, content, files)
         self.broadcast({"type": "message", "message": message})
+        return message
 
     def max_running(self):
         return capacity.max_running(self.meminfo(), self.per_turn_mb, self.config.get("max_running"))
@@ -266,6 +267,7 @@ class Hub:
         if entry:
             await asyncio.gather(entry[1], return_exceptions=True)
         self.store.delete_agent(agent_id)
+        att.remove_thread(agent_id)  # files attached in its private chat
         self.statuses.pop(agent_id, None)
         self.activities.pop(agent_id, None)
         self.last_active.pop(agent_id, None)
@@ -278,14 +280,19 @@ class Hub:
         if not text.strip() and not attachments:
             raise ValueError("Escribe un mensaje o adjunta un archivo.")
         files = self._attach(thread, attachments or [])  # raises before anything is posted
-        missing = False
-        for f in files:
-            if f["kind"] == "audio":
+        message = self._post(thread, "user", "text", text, files)  # show it now, even if audio is slow
+        audios = [f for f in files if f["kind"] == "audio"]
+        if audios:
+            self._post(thread, "system", "system", "Transcribiendo audio…")
+            for f in audios:
                 f["transcript"] = await self.transcriber(f["path"])
-                missing = missing or not f["transcript"]
-        self._post(thread, "user", "text", text, files)
-        if missing:
-            self._post(thread, "system", "system", NO_TRANSCRIPT)
+            updated = self.store.update_attachments(message["id"], files)
+            if updated:
+                self.broadcast({"type": "message_updated", "message": updated})
+            if not all(f["transcript"] for f in audios):
+                self._post(thread, "system", "system", NO_TRANSCRIPT)
+            if not (self.is_group(thread) or self.store.agent(thread)):
+                return  # the conversation was cleared or deleted while transcribing
         if self.is_group(thread):
             self.hops[thread] = 0
             self._route(thread, text, author=None, origin=origin)
@@ -369,7 +376,7 @@ class Hub:
                 agent, self.roles[agent["role"]], item[2],
                 emit=lambda ev, a=agent_id, t=item[1]: self._on_event(a, t, ev),
                 ask=lambda tool, inp, rule, a=agent_id: self._ask(a, tool, inp, rule),
-                model=self.config.get("model"), env=self._env(),
+                model=self.config.get("model"), env=self._env(), thread=item[1],
                 mcp_servers={"tablero": self.board.mcp_server(agent_id)})
             task = asyncio.get_running_loop().create_task(self._run(agent, item[1], turn, item[3]))
             self.running[agent_id] = (turn, task, item[1])

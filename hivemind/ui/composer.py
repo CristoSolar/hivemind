@@ -1,5 +1,6 @@
 import re
 import time
+import uuid
 from pathlib import Path
 
 from gi.repository import Gdk, Gtk, Pango
@@ -130,7 +131,7 @@ class Composer(Gtk.Box):
                 return
             folder = Path.home() / ".cache" / "tmp"
             folder.mkdir(parents=True, exist_ok=True)
-            path = folder / f"hivemind-pegado-{time.strftime('%Y%m%d-%H%M%S')}.png"
+            path = folder / f"hivemind-pegado-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}.png"
             texture.save_to_png(str(path))
             self.add_files([str(path)])
         clipboard.read_texture_async(None, done)

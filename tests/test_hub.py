@@ -490,9 +490,8 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         await self.hub.drain()
         hist = self.store.history(dev["id"])
         self.assertEqual(len(hist[0]["attachments"]), 2)
-        notices = [m for m in hist if m["author"] == "system"]
-        self.assertEqual(len(notices), 1)
-        self.assertIn("Voxtype", notices[0]["content"])
+        notices = [m for m in hist if m["author"] == "system" and "Voxtype" in m["content"]]
+        self.assertEqual(len(notices), 1)  # once, however many audios failed
 
     async def test_group_history_lists_attachments(self):
         prompts = []
@@ -516,6 +515,36 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         await self.hub.drain()
         self.assertTrue((root / dev["id"]).exists())
         await self.hub.clear_thread(dev["id"])
+        self.assertFalse((root / dev["id"]).exists())
+
+    async def test_audio_message_is_posted_before_transcription_finishes(self):
+        make, _ = self.attach_env()
+        release = asyncio.Event()
+
+        async def slow(path):
+            await release.wait()
+            return "hola equipo"
+        self.hub.transcriber = slow
+        dev, = self.make("Dev")
+        sending = asyncio.ensure_future(self.hub.send(dev["id"], "escucha", attachments=[make("n.m4a")]))
+        for _ in range(20):
+            await asyncio.sleep(0)
+        posted = self.store.history(dev["id"])
+        self.assertEqual([m["content"] for m in posted if m["author"] == "user"], ["escucha"])
+        self.assertTrue(any("Transcribiendo" in m["content"] for m in posted if m["author"] == "system"))
+        release.set()
+        await sending
+        await self.hub.drain()
+        user = [m for m in self.store.history(dev["id"]) if m["author"] == "user"][0]
+        self.assertEqual(user["attachments"][0]["transcript"], "hola equipo")
+        self.assertTrue(any(e["type"] == "message_updated" for e in self.events))
+
+    async def test_delete_agent_removes_its_attachments(self):
+        make, root = self.attach_env()
+        dev, = self.make("Dev")
+        await self.hub.send(dev["id"], "guarda", attachments=[make("a.txt")])
+        await self.hub.drain()
+        await self.hub.delete_agent(dev["id"])
         self.assertFalse((root / dev["id"]).exists())
 
 

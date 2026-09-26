@@ -57,19 +57,29 @@ def store(sources, thread):
         if size > MAX_BYTES:
             raise ValueError(f"{p.name} pesa más de {MAX_BYTES // (1024 * 1024)} MB.")
         files.append((p, size))
-    folder = root() / _safe(thread)
-    entries = []
-    for p, size in files:
-        folder.mkdir(parents=True, exist_ok=True)
-        dest = folder / f"{uuid.uuid4().hex[:8]}-{_safe(p.name)}"
-        shutil.copy2(p, dest)
-        entries.append({"name": p.name, "path": str(dest), "kind": kind_of(p.name), "size": size,
-                        "transcript": None})
+    target = folder(thread)
+    entries, written = [], []
+    try:
+        for p, size in files:
+            target.mkdir(parents=True, exist_ok=True)
+            dest = target / f"{uuid.uuid4().hex[:8]}-{_safe(p.name)}"
+            written.append(dest)
+            shutil.copy2(p, dest)
+            entries.append({"name": p.name, "path": str(dest), "kind": kind_of(p.name), "size": size,
+                            "transcript": None})
+    except OSError as e:  # e.g. disk full halfway: leave nothing behind
+        for dest in written:
+            dest.unlink(missing_ok=True)
+        raise ValueError(f"No pude guardar los adjuntos: {e.strerror or e}.") from None
     return entries
 
 
+def folder(thread):
+    return root() / _safe(thread)
+
+
 def remove_thread(thread):
-    shutil.rmtree(root() / _safe(thread), ignore_errors=True)
+    shutil.rmtree(folder(thread), ignore_errors=True)
 
 
 def prompt_lines(entries):

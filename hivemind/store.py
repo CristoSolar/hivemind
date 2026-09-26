@@ -116,6 +116,13 @@ class Store:
                 {**m, "attachments": json.dumps(attachments or [])})
         return {"id": cur.lastrowid, **m, "attachments": attachments or []}
 
+    def update_attachments(self, message_id, attachments):
+        with self.db:
+            self.db.execute("update messages set attachments = ? where id = ?",
+                            (json.dumps(attachments), message_id))
+        row = self.db.execute("select * from messages where id = ?", (message_id,)).fetchone()
+        return self._message(row) if row else None
+
     @staticmethod
     def _message(row):
         d = dict(row)

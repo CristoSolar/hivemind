@@ -64,6 +64,24 @@ class AttachmentsTest(unittest.TestCase):
         with mock.patch("shutil.which", return_value=None):
             self.assertIsNone(asyncio.run(att.transcribe(self.make("n.m4a"))))
 
+    def test_failed_copy_leaves_no_orphans_and_speaks_spanish(self):
+        import shutil
+        real = shutil.copy2
+        calls = []
+
+        def flaky(src, dst):
+            calls.append(dst)
+            if len(calls) == 2:
+                open(dst, "wb").write(b"half")  # a partly written file
+                raise OSError(28, "No space left on device")
+            return real(src, dst)
+
+        with mock.patch("shutil.copy2", flaky):
+            with self.assertRaises(ValueError) as e:
+                att.store([self.make("a.txt"), self.make("b.txt")], "x")
+        self.assertIn("No pude guardar", str(e.exception))
+        self.assertEqual(list((self.dir / "adjuntos" / "x").glob("*")), [])
+
 
 if __name__ == "__main__":
     unittest.main()

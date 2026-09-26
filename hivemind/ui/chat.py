@@ -219,7 +219,9 @@ class ChatView(Gtk.Box):
 
     def on_event(self, ev):
         t = ev["type"]
-        if t == "message" and ev["message"]["thread"] == self.thread:
+        if t == "message_updated" and ev["message"]["thread"] == self.thread:
+            self.load()  # e.g. an audio transcript arrived
+        elif t == "message" and ev["message"]["thread"] == self.thread:
             self._message(ev["message"])
         elif t == "delta" and ev["thread"] == self.thread:
             if self.live is None:
