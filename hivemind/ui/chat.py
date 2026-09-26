@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from gi.repository import GLib, Gtk, Pango
+from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango
 
 from hivemind.ui import theme
 from hivemind.ui.composer import Composer
@@ -30,9 +30,54 @@ def _bubble(text, css, mentions=None):
     return box
 
 
+def _size(n):
+    for unit in ("B", "KB", "MB"):
+        if n < 1024 or unit == "MB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+
+
+def _open(path, widget):
+    Gtk.FileLauncher(file=Gio.File.new_for_path(path)).launch(widget.get_root(), None, None)
+
+
+def _attachment(entry):
+    """A thumbnail for images, a chip (icon, name, size) for everything else; click opens it."""
+    path, box = entry["path"], Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+    button = Gtk.Button(tooltip_text=f"Abrir {entry['name']}", halign=Gtk.Align.START)
+    button.add_css_class("flat")
+    button.connect("clicked", lambda b: _open(path, b))
+    thumb = None
+    if entry["kind"] == "imagen":
+        try:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 240, 240, True)
+            thumb = Gtk.Picture(paintable=Gdk.Texture.new_for_pixbuf(pixbuf), can_shrink=False)
+        except GLib.Error:
+            thumb = None  # missing or unreadable image: fall back to the chip
+    if thumb:
+        button.set_child(thumb)
+    else:
+        chip = Gtk.Box(spacing=8)
+        content_type, _ = Gio.content_type_guess(entry["name"], None)
+        chip.append(Gtk.Image(gicon=Gio.content_type_get_icon(content_type), pixel_size=24))
+        chip.append(Gtk.Label(label=entry["name"], ellipsize=Pango.EllipsizeMode.MIDDLE, max_width_chars=32))
+        size = Gtk.Label(label=_size(entry.get("size") or 0))
+        size.add_css_class("dim-label")
+        chip.append(size)
+        button.set_child(chip)
+        button.add_css_class("hivemind-attachment")
+    box.append(button)
+    if entry.get("transcript"):
+        text = Gtk.Label(label=entry["transcript"], wrap=True, xalign=0, selectable=True)
+        box.append(Gtk.Expander(label="Transcripción", child=text))
+    return box
+
+
 class ChatView(Gtk.Box):
-    def __init__(self, client, thread, names, members=None):
+    def __init__(self, client, thread, names, members=None, on_error=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self.on_error = on_error or (lambda res, err: None)
+        self.attachment_widgets = []
         self.client, self.thread, self.names = client, thread, names
         self.members = members or (lambda: [])  # names that "@" can complete in this conversation
         self.is_group = thread == "group" or thread.startswith("g-")
@@ -51,6 +96,10 @@ class ChatView(Gtk.Box):
                               placeholder=("Escribe a todos… o usa @Nombre para uno solo" if self.is_group
                                            else "Escribe una tarea…  (Shift+Enter: nueva línea)"))
         bar.append(self.entry)
+        drop = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY)  # drag files onto the chat
+        drop.connect("drop", lambda _t, files, _x, _y: (
+            self.entry.add_files([f.get_path() for f in files.get_files() if f.get_path()]), True)[1])
+        self.add_controller(drop)
         if not self.is_group:
             self.stop_btn = Gtk.Button(icon_name="media-playback-stop-symbolic", tooltip_text="Detener")
             self.stop_btn.connect("clicked", lambda *_: client.call("stop", {"agent": thread}))
@@ -78,6 +127,7 @@ class ChatView(Gtk.Box):
                 self.list.remove(child)
                 child = self.list.get_first_child()
             self.tools, self.cards, self.live = {}, {}, None
+            self.attachment_widgets = []
             for m in res or []:
                 self._message(m)
             for ap in approvals:
@@ -100,9 +150,11 @@ class ChatView(Gtk.Box):
         if m["kind"] == "system":
             self.list.append(_label(GLib.markup_escape_text(m["content"]), "hivemind-system"))
         elif m["author"] == "user":
-            b = _bubble(m["content"], "hivemind-bubble-user", self.names.values())
-            b.set_halign(Gtk.Align.END)
-            self.list.append(b)
+            col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, halign=Gtk.Align.END)
+            if m["content"]:
+                col.append(_bubble(m["content"], "hivemind-bubble-user", self.names.values()))
+            self._attachments(col, m, Gtk.Align.END)
+            self.list.append(col)
         else:
             col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, halign=Gtk.Align.START)
             if self.is_group:
@@ -112,9 +164,18 @@ class ChatView(Gtk.Box):
                 who.append(bee)
                 who.append(_label(GLib.markup_escape_text(self.names.get(m["author"], "?")), "hivemind-author"))
                 col.append(who)
-            col.append(_bubble(m["content"], "hivemind-bubble-agent", self.names.values()))
+            if m["content"]:
+                col.append(_bubble(m["content"], "hivemind-bubble-agent", self.names.values()))
+            self._attachments(col, m, Gtk.Align.START)
             self.list.append(col)
         self._scroll_end()
+
+    def _attachments(self, col, m, align):
+        for entry in m.get("attachments") or []:
+            widget = _attachment(entry)
+            widget.set_halign(align)
+            self.attachment_widgets.append(widget)
+            col.append(widget)
 
     def _tool(self, ev):
         if ev["type"] == "tool":
@@ -178,5 +239,8 @@ class ChatView(Gtk.Box):
     def _send(self, *_):
         self.entry.send()
 
-    def _send_text(self, text):
-        self.client.call("send", {"thread": self.thread, "text": text})
+    def _send_text(self, text, files=()):
+        params = {"thread": self.thread, "text": text}
+        if files:
+            params["attachments"] = list(files)
+        self.client.call("send", params, self.on_error)

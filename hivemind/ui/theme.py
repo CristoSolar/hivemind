@@ -50,6 +50,7 @@ headerbar .title {{ font-weight: bold; }}
 entry {{ background: {c['dark_background']}; border: 2px solid {c['muted']}; border-radius: 0;
   box-shadow: none; outline: none; min-height: 34px; }}
 entry:focus-within {{ border-color: {c['accent']}; }}
+.hivemind-attachment {{ background: {c['dark_background']}; border: 2px solid {c['muted']}; border-radius: 0; padding: 2px 8px; }}
 .hivemind-composer-frame {{ background: {c['dark_background']}; border: 2px solid {c['muted']}; border-radius: 0; }}
 .hivemind-composer-frame:focus-within {{ border-color: {c['accent']}; }}
 textview.hivemind-composer, textview.hivemind-composer text {{ background: {c['dark_background']}; color: {c['foreground']}; }}

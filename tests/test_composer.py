@@ -17,7 +17,8 @@ class ComposerTest(unittest.TestCase):
                 theme.install(Gdk.Display.get_default())
                 win = Adw.ApplicationWindow(application=self, default_width=600, default_height=400)
                 sent = []
-                composer = Composer(sent.append, names=lambda: ["Dev", "Desarrollador", "Marketing"],
+                composer = Composer(lambda text, files: sent.append((text, files)) if files else sent.append(text),
+                                    names=lambda: ["Dev", "Desarrollador", "Marketing"],
                                     placeholder="Escribe…")
                 box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.END, vexpand=True)
                 box.append(composer)
@@ -82,6 +83,26 @@ class ComposerTest(unittest.TestCase):
             c.buffer.set_text("@Dev y @nadie")
             r["tagged"] = c.highlighted()
         self.assertEqual(self.run_app(body)["tagged"], ["@Dev"])
+
+    def test_attachment_chips(self):
+        import tempfile
+        d = tempfile.mkdtemp(dir=os.path.expanduser("~/.cache/tmp"))
+        a, b = os.path.join(d, "a.png"), os.path.join(d, "b.pdf")
+        for p in (a, b):
+            open(p, "wb").write(b"x")
+
+        def body(c, sent, r, Gdk):
+            c.add_files([a, b, a])            # a duplicate is ignored
+            r["chips"] = c.pending()
+            c.remove_file(a)
+            r["after_remove"] = c.pending()
+            c.buffer.set_text("")
+            c.send()                          # files only, no text
+            r["sent"], r["left"] = list(sent), c.pending()
+        r = self.run_app(body)
+        self.assertEqual(r["chips"], [a, b])
+        self.assertEqual(r["after_remove"], [b])
+        self.assertEqual((r["sent"], r["left"]), ([("", [b])], []))
 
 
 if __name__ == "__main__":

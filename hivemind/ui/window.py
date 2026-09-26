@@ -187,7 +187,8 @@ class MainWindow(Adw.ApplicationWindow):
                 view.load(self.tasks)
             else:
                 view = ChatView(self.client, thread, self._names(),
-                                members=lambda t=thread: [a["name"] for a in self._members(t)])
+                                members=lambda t=thread: [a["name"] for a in self._members(t)],
+                                on_error=self._toast_error)
                 view.load(self.approvals)
             self.views[thread] = view
             self.stack.add_named(view, thread)

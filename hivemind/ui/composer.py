@@ -1,6 +1,8 @@
 import re
+import time
+from pathlib import Path
 
-from gi.repository import Gdk, Gtk
+from gi.repository import Gdk, Gtk, Pango
 
 from hivemind.ui import theme
 from hivemind.ui.mention import complete, mention_at
@@ -14,8 +16,11 @@ class Composer(Gtk.Box):
     and typing "@" lists the agents that can be mentioned here."""
 
     def __init__(self, on_send, names=lambda: [], placeholder=""):
-        super().__init__(hexpand=True)
-        self.on_send, self.names = on_send, names
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4, hexpand=True)
+        self.on_send, self.names = on_send, names  # on_send(text, files)
+        self.files = []
+        self.chips = Gtk.Box(spacing=6, visible=False)
+        self.append(self.chips)
         self.view = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR, accepts_tab=False, hexpand=True,
                                  top_margin=7, bottom_margin=7, left_margin=10, right_margin=10)
         self.view.add_css_class("hivemind-composer")
@@ -29,7 +34,13 @@ class Composer(Gtk.Box):
         self.hint.add_css_class("dim-label")
         overlay = Gtk.Overlay(child=self.scroll, hexpand=True)
         overlay.add_overlay(self.hint)
-        self.append(overlay)
+        attach = Gtk.Button(icon_name="mail-attachment-symbolic", tooltip_text="Adjuntar archivos",
+                            valign=Gtk.Align.END)
+        attach.connect("clicked", self._pick_files)
+        row = Gtk.Box(spacing=6)
+        row.append(attach)
+        row.append(overlay)
+        self.append(row)
 
         self.tag = self.buffer.create_tag("mention", weight=700,
                                           foreground=theme.colors().get("accent"))
@@ -56,9 +67,74 @@ class Composer(Gtk.Box):
 
     def send(self):
         text = self.text.strip()
-        if text:
+        if text or self.files:
+            files = list(self.files)
             self.buffer.set_text("")
-            self.on_send(text)
+            self.clear_files()
+            self.on_send(text, files)
+
+    # attachments ------------------------------------------------------------------
+    def pending(self):
+        return list(self.files)
+
+    def add_files(self, paths):
+        for p in paths:
+            if p and p not in self.files:
+                self.files.append(p)
+        self._render_chips()
+
+    def remove_file(self, path):
+        self.files = [f for f in self.files if f != path]
+        self._render_chips()
+
+    def clear_files(self):
+        self.files = []
+        self._render_chips()
+
+    def _render_chips(self):
+        while (child := self.chips.get_first_child()):
+            self.chips.remove(child)
+        for path in self.files:
+            chip = Gtk.Box(spacing=4)
+            chip.add_css_class("hivemind-attachment")
+            chip.append(Gtk.Label(label=Path(path).name, ellipsize=Pango.EllipsizeMode.MIDDLE,
+                                  max_width_chars=24))
+            remove = Gtk.Button(icon_name="window-close-symbolic", tooltip_text="Quitar")
+            remove.add_css_class("flat")
+            remove.connect("clicked", lambda _b, p=path: self.remove_file(p))
+            chip.append(remove)
+            self.chips.append(chip)
+        self.chips.set_visible(bool(self.files))
+
+    def _pick_files(self, *_):
+        dialog = Gtk.FileDialog(title="Adjuntar archivos", modal=True)
+        dialog.open_multiple(self.get_root(), None, self._picked)
+
+    def _picked(self, dialog, res):
+        try:
+            files = dialog.open_multiple_finish(res)
+        except Exception:  # cancelled
+            return
+        self.add_files([f.get_path() for f in files if f.get_path()])
+
+    def _paste_image(self):
+        """Ctrl+V with an image on the clipboard (a screenshot) attaches it as a PNG."""
+        clipboard = self.get_clipboard()
+        if not clipboard.get_formats().contain_gtype(Gdk.Texture):
+            return False
+
+        def done(cb, res):
+            try:
+                texture = cb.read_texture_finish(res)
+            except Exception:
+                return
+            folder = Path.home() / ".cache" / "tmp"
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / f"hivemind-pegado-{time.strftime('%Y%m%d-%H%M%S')}.png"
+            texture.save_to_png(str(path))
+            self.add_files([str(path)])
+        clipboard.read_texture_async(None, done)
+        return True
 
     def options(self):
         out, row = [], self.list.get_first_child()
@@ -92,6 +168,8 @@ class Composer(Gtk.Box):
             if keyval == Gdk.KEY_Escape:
                 self.popover.popdown()
                 return True
+        if keyval in (Gdk.KEY_v, Gdk.KEY_V) and state & Gdk.ModifierType.CONTROL_MASK and self._paste_image():
+            return True
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and not state & Gdk.ModifierType.SHIFT_MASK:
             self.send()
             return True
