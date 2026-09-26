@@ -64,7 +64,7 @@ are not a GUI window, so notifications keep reaching the user.
 |---|---|
 | `hello` | `role?` — returns a snapshot: agents, roles, statuses, activities, last_active, approvals, capacity, routines, tasks, settings (never the API key) |
 | `history` | `thread` (`"group"`, a group id or an agent id), `before?`, `limit?` |
-| `send` | `thread`, `text` |
+| `send` | `thread`, `text`, `attachments?` (local file paths; copied to `~/.local/share/hivemind/adjuntos/<thread>/`, max 50 MB each, 10 per message; audio is transcribed with ffmpeg + `voxtype transcribe`) |
 | `stop` / `delete_agent` | `agent` |
 | `create_agent` | `name` (`[\w-]+`, unique ignoring case), `role`, `cwd?`, `model?` (`opus`/`sonnet`/`haiku`/null) |
 | `update_agent` | `agent`, `model?`, `cwd?` (changing `cwd` resets the session) |
@@ -141,6 +141,7 @@ docs/superpowers/      design specs and implementation plans
 - Tools not allowed by the agent's role need a user approval. "Allow always" stores a rule
   pinned to the exact command or path. Wildcard rules never match shell commands containing
   `; & | $ < >`, backticks or newlines.
-- The board tools (`mcp__tablero__*`) are the only tools every agent may use without asking.
+- The board tools (`mcp__tablero__*`) and `Read` of files resolved inside the attachments folder
+  are the only things every agent may do without asking.
 - The daemon never returns the API key over the socket.
 - The socket is `0600`, and the config file holding the key is `0600`.

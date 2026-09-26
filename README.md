@@ -45,6 +45,7 @@ aparte.
 | **Agentes con rol** | Crea agentes como «Dev», «Marketing» o «Sistema». Cada uno tiene su chat, su modelo (Opus, Sonnet o Haiku) y su carpeta de trabajo. |
 | **Chat grupal y grupos** | «Grupo» incluye a todos. Además creas grupos con los agentes que elijas (p. ej. «Lanzamiento» con Dev y Marketing). Menciona a uno con `@Nombre` o escribe a todos los integrantes; los agentes se mencionan entre ellos para pasarse trabajo. |
 | **Memoria por conversación** | Cada agente recuerda cada conversación por separado, así los grupos no se mezclan. Cuando habla en un grupo, recibe lo último de su chat privado contigo: si le preguntas «¿cómo va el desarrollo?», responde con lo que trabajaron. |
+| **Adjuntos** | Imágenes, documentos y audios, con 📎, arrastrando o pegando una captura (Ctrl+V). Los agentes ven las imágenes y leen PDF y texto; los audios se transcriben en tu equipo. |
 | **Limpiar** | «Limpiar» borra un grupo y hace que sus integrantes olviden ese tema (sus chats privados no cambian). «Nueva conversación» hace lo mismo con el chat privado de un agente. |
 | **Aprobaciones** | Lo que un agente no tiene permitido de antemano aparece como tarjeta: **Permitir**, **Denegar** o **Permitir siempre** (la tarjeta muestra exactamente qué regla se guardaría). |
 | **En segundo plano** | Un servicio de usuario de systemd mantiene a los agentes trabajando con la ventana cerrada. Si algo necesita tu aprobación, te llega una notificación. |
@@ -242,6 +243,20 @@ cada agente, en el orden de la barra lateral.
 - **Nueva conversación (en un agente):** borra su chat privado y su memoria privada. Sigue en
   sus grupos.
 - Útil cuando cambias de proyecto o reemplazas agentes: así nadie arrastra el tema anterior.
+
+### Adjuntar archivos
+
+- Usa **📎** junto a la caja de texto, **arrastra** archivos al chat o **pega** una imagen con
+  Ctrl+V. Antes de enviar, cada archivo aparece como una ficha con ✕ para quitarlo.
+- Puedes enviar solo archivos, sin texto. El límite es de 50 MB por archivo y 10 archivos por
+  mensaje.
+- Los archivos se copian a `~/.local/share/hivemind/adjuntos/`, así que el mensaje sigue
+  funcionando aunque muevas el original. Limpiar la conversación también los borra.
+- **Imágenes, PDF y texto:** el agente los abre con su herramienta `Read`, sin pedirte permiso
+  (solo dentro de esa carpeta).
+- **Audio:** Claude no escucha audio, así que HiveMind lo transcribe en tu equipo con
+  **Voxtype** (Menú de Omarchy → Instalar → Voxtype), y el agente recibe el texto. Para audios en
+  español, elige un modelo multilingüe; el de fábrica, `base.en`, es solo inglés.
 
 ### Aprobaciones
 
