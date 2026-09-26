@@ -10,24 +10,20 @@ _FALLBACK = {"mode": "dark", "accent": "#89b4fa", "background": "#1e1e2e", "fore
              "green": "#a6e3a1", "yellow": "#f9e2af"}
 
 
-AGENT_TINTS = 8  # distinct colours before two agents share one; the name still tells them apart
+from hivemind.palette import AGENT_TINTS, PALETTE  # noqa: F401  (re-exported for the UI)
 
 
-def tints(accent, n=AGENT_TINTS):
-    """`n` hues spread around the wheel, keeping the theme accent's saturation and lightness.
-
-    Derived from the theme instead of hardcoded, so the tints follow an Omarchy theme switch and
-    stay as readable as the accent itself. None of them lands on the accent: that one means "you".
-    """
+def tints(accent):
+    """One hex colour per entry of PALETTE, tuned to this theme."""
     try:
         r, g, b = (int(accent[i:i + 2], 16) / 255 for i in (1, 3, 5))
     except (ValueError, IndexError, TypeError):  # a theme file may hold anything
         r, g, b = (int(_FALLBACK["accent"][i:i + 2], 16) / 255 for i in (1, 3, 5))
-    h, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
+    _, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
+    saturation = max(saturation, 0.45)  # a grey accent would make every agent the same grey
     out = []
-    for i in range(n):
-        hue = (h + (i + 1) / (n + 1)) % 1.0
-        rr, gg, bb = colorsys.hls_to_rgb(hue, lightness, saturation)
+    for _name, degrees in PALETTE:
+        rr, gg, bb = colorsys.hls_to_rgb(degrees / 360.0, lightness, saturation)
         out.append("#%02x%02x%02x" % (round(rr * 255), round(gg * 255), round(bb * 255)))
     return out
 
@@ -116,16 +112,25 @@ popover > contents {{ background-color: {c['dark_background']}; border: 2px soli
 .hivemind-dot-error {{ color: {c['red']}; }}
 
 /* One tint per agent, so a glance tells you who is speaking. */
-{_tint_css(c['accent'])}
+{_tint_css(c['accent'], c['foreground'])}
 """
 
 
-def _tint_css(accent):
+def _tint_css(accent, foreground):
     rules = []
     for i, colour in enumerate(tints(accent)):
         rules.append(f".hivemind-bubble-agent.tint-{i} {{ border-color: {colour}; }}")
         rules.append(f".hivemind-author.tint-{i} {{ color: {colour}; }}")
         rules.append(f".hivemind-bee.tint-{i} {{ color: {colour}; }}")
+        # At rest the bee wears the agent's colour; working, waiting and error keep their own,
+        # because what the agent is doing matters more than which agent it is.
+        rules.append(f".hivemind-bee-idle.tint-{i} {{ color: {colour}; }}")
+        rules.append(f".hivemind-bee-sleeping.tint-{i} {{ color: {colour}; opacity: 0.55; }}")
+        rules.append(f".hivemind-swatch.tint-{i} {{ background: {colour}; }}")
+    rules.append(f".hivemind-swatch {{ min-width: 26px; min-height: 26px; padding: 0;"
+                 f" border: 2px solid transparent; }}")
+    rules.append(f".hivemind-swatch:checked {{ border-color: {foreground}; }}")
+    rules.append(f".hivemind-swatch-auto {{ min-height: 26px; padding: 0 8px; }}")
     return "\n".join(rules)
 
 

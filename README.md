@@ -44,6 +44,7 @@ aparte.
 | | |
 |---|---|
 | **Agentes con rol** | Vienen ocho roles: **Desarrollo**, **Producto**, **Diseño (UI/UX)**, **QA**, **Datos**, **Soporte**, **Marketing** y **Sistema**. Cada agente tiene su chat, su modelo (Opus, Sonnet o Haiku) y su carpeta de trabajo. |
+| **Color por agente** | Cada agente lleva un color de una paleta de ocho (Ámbar, Coral, Rosa, Violeta, Azul, Turquesa, Menta, Lima), o «Auto» y HiveMind elige. Tiñe su burbuja en el chat, su nombre y su abejita cuando descansa. Los tonos son fijos, pero la saturación sale de tu tema de Omarchy, así que combinan al cambiar de tema. |
 | **Estilo por agente** | Además del rol, cada agente lleva un texto propio: de qué se encarga y con qué criterio. Dos agentes de Desarrollo pueden trabajar distinto — uno que decide rápido y ve backend, otro que va con calma y ve interfaz. |
 | **Chat grupal y grupos** | «Grupo» incluye a todos. Además creas grupos con los agentes que elijas (p. ej. «Lanzamiento» con Dev y Marketing). Menciona a uno con `@Nombre` o escribe a todos los integrantes; los agentes se mencionan entre ellos para pasarse trabajo. |
 | **Memoria por conversación** | Cada agente recuerda cada conversación por separado, así los grupos no se mezclan. Cuando habla en un grupo, recibe lo último de su chat privado contigo: si le preguntas «¿cómo va el desarrollo?», responde con lo que trabajaron. |
@@ -352,6 +353,11 @@ de Product Manager a SRE — con el rol que les toca y un estilo sugerido listo 
 
 El estilo se escribe al crear el agente o después en su ⚙, y se agrega al final del prompt del
 rol. Cambiarlo **no** borra la memoria del agente: aplica desde el siguiente mensaje.
+
+**El color** se elige en la misma pantalla. La abejita del lateral lo lleva mientras el agente
+descansa o duerme; cuando trabaja, espera tu aprobación o falla, manda el color del estado —
+lo que está haciendo importa más que quién es. El azul de tu tema no está en la paleta: ese
+es el tuyo, el de tus mensajes.
 
 ### Dónde vive cada cosa
 

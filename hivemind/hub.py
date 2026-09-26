@@ -7,7 +7,7 @@ import time
 import sys
 from collections import deque
 
-from hivemind import attachments as att, capacity, paths
+from hivemind import attachments as att, capacity, palette, paths
 from hivemind.board import Board
 from hivemind.router import CONTEXT_MESSAGES, MAX_HOPS, NAME_RE, mentions
 from hivemind.routines import Routines
@@ -200,7 +200,7 @@ class Hub:
             raise ValueError(f"La carpeta {cwd} no existe.")
         return cwd
 
-    def create_agent(self, name, role, cwd=None, model=None, brief=""):
+    def create_agent(self, name, role, cwd=None, model=None, brief="", tint=None):
         self._check_model(model)
         if not NAME_RE.match(name or ""):
             raise ValueError("El nombre solo puede tener letras, números, guiones y guiones bajos.")
@@ -211,13 +211,23 @@ class Hub:
         if any(a["name"].casefold() == name.casefold() for a in self.store.agents()):
             raise ValueError(f"Ya existe un agente llamado «{name}».")
         try:
-            agent = self.store.create_agent(name, role, cwd, model, (brief or "").strip())
+            agent = self.store.create_agent(name, role, cwd, model, (brief or "").strip(),
+                                            self._check_tint(tint))
         except sqlite3.IntegrityError:
             raise ValueError(f"Ya existe un agente llamado «{name}».") from None
         self.statuses[agent["id"]] = "idle"
         self.last_active[agent["id"]] = agent["created_at"]
         self.broadcast({"type": "agents", "agents": self.store.agents()})
         return agent
+
+    @staticmethod
+    def _check_tint(tint):
+        """None means the window picks one; anything else must name a palette colour."""
+        if tint is None:
+            return None
+        if not palette.valid(tint):
+            raise ValueError("Ese color no existe.")
+        return tint
 
     def update_agent(self, agent_id, **changes):
         agent = self.store.agent(agent_id)
@@ -229,6 +239,8 @@ class Hub:
             fields["model"] = changes["model"]
         if "brief" in changes:
             fields["brief"] = (changes["brief"] or "").strip()
+        if "tint" in changes:
+            fields["tint"] = self._check_tint(changes["tint"])
         if changes.get("cwd"):
             cwd = self._check_cwd(changes["cwd"])
             if cwd != agent["cwd"]:

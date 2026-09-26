@@ -25,8 +25,12 @@ def _step():
 class AnimatedBee(Gtk.Image):
     """Pixel bee that takes its colour from the theme and animates by agent status."""
 
-    def __init__(self, status="idle", seed="", size=32, activity=None, last_active=None):
+    def __init__(self, status="idle", seed="", size=32, activity=None, last_active=None, tint=None):
         super().__init__(pixel_size=size)
+        # The agent's colour shows while it rests; working, waiting and error keep the
+        # status colours, because what it is doing matters more than which agent it is.
+        if tint is not None:
+            self.add_css_class(f"tint-{tint}")
         self.offset = zlib.crc32(seed.encode()) % 28  # desynchronise bees in the same list
         self.status, self.activity, self.last_active = status, activity, last_active or time.time()
         self.key, self.shown = None, None

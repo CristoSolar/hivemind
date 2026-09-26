@@ -79,3 +79,21 @@ class TintTest(unittest.TestCase):
         for i in range(AGENT_TINTS):
             self.assertIn(f".hivemind-bubble-agent.tint-{i}", out)
             self.assertIn(f".hivemind-author.tint-{i}", out)
+
+    def test_only_the_resting_bee_wears_the_agent_colour(self):
+        """Working, waiting and error keep the status colours: what it does beats who it is."""
+        out = css(COLORS)
+        for i in range(AGENT_TINTS):
+            self.assertIn(f".hivemind-bee-idle.tint-{i}", out)
+            self.assertIn(f".hivemind-bee-sleeping.tint-{i}", out)
+            for state in ("working", "tool", "thinking", "waiting", "error"):
+                self.assertNotIn(f".hivemind-bee-{state}.tint-{i}", out)
+
+    def test_every_palette_colour_has_a_swatch(self):
+        out = css(COLORS)
+        for i in range(AGENT_TINTS):
+            self.assertIn(f".hivemind-swatch.tint-{i}", out)
+
+    def test_a_grey_accent_still_gives_distinct_colours(self):
+        got = tints("#808080")
+        self.assertEqual(len(set(got)), AGENT_TINTS, "a grey theme must not grey out every agent")

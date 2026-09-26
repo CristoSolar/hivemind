@@ -2,7 +2,7 @@ import os
 
 from gi.repository import Adw, Gio, Gtk, Pango
 
-from hivemind.ui import a11y
+from hivemind.ui import a11y, theme
 
 MODELS = [(None, "Predeterminado"), ("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku")]
 
@@ -53,6 +53,32 @@ class FolderButton(Gtk.Button):
             self._show()
 
 
+def _tint_picker(current):
+    """Swatches, one per palette colour, plus «Automático». Returns (widget, read)."""
+    row = Gtk.Box(spacing=6)
+    auto = Gtk.ToggleButton(label="Auto", tooltip_text="Que HiveMind elija el color")
+    auto.add_css_class("hivemind-swatch-auto")
+    a11y.label(auto, "Color automático")
+    row.append(auto)
+    buttons = [auto]
+    for i, (name, _hue) in enumerate(theme.PALETTE):
+        b = Gtk.ToggleButton(tooltip_text=name)
+        b.set_group(auto)  # one choice at a time, "Auto" included
+        b.add_css_class("hivemind-swatch")
+        b.add_css_class(f"tint-{i}")
+        a11y.label(b, f"Color {name}")
+        row.append(b)
+        buttons.append(b)
+    buttons[0 if current is None else current + 1].set_active(True)
+
+    def read():
+        for i, b in enumerate(buttons):
+            if b.get_active():
+                return None if i == 0 else i - 1
+        return None
+    return row, read
+
+
 def agent_dialog(parent, roles, on_done, agent=None):
     """New agent (agent=None) or edit an existing agent's model and folder."""
     editing = agent is not None
@@ -75,6 +101,8 @@ def agent_dialog(parent, roles, on_done, agent=None):
     brief.get_buffer().set_text(agent.get("brief", "") if editing else "")
     brief.set_size_request(-1, 90)
     box.append(_row("Estilo", Gtk.Frame(child=brief)))
+    picker, read_tint = _tint_picker(agent.get("tint") if editing else None)
+    box.append(_row("Color", picker))
     hint = Gtk.Label(xalign=0, wrap=True, label="Opcional. Cómo trabaja este agente en particular: "
                      "de qué se encarga, qué criterio usa. Dos agentes del mismo rol pueden "
                      "trabajar distinto.")
@@ -98,7 +126,8 @@ def agent_dialog(parent, roles, on_done, agent=None):
             return
         buf = brief.get_buffer()
         params = {"model": MODELS[model.get_selected()][0],
-                  "brief": buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False).strip()}
+                  "brief": buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False).strip(),
+                  "tint": read_tint()}
         if folder.path:
             params["cwd"] = folder.path
         if not editing:

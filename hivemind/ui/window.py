@@ -129,12 +129,13 @@ class MainWindow(Adw.ApplicationWindow):
         return {a["id"]: a["name"] for a in self.agents}
 
     def tint_of(self, agent_id):
-        """The agent's colour slot. Agents come back in creation order, so the first
-        theme.AGENT_TINTS agents each get their own; after that two share a hue and the
-        name still tells them apart."""
+        """The agent's colour: the one it was given, or one picked from its place in the
+        roster. Agents come back in creation order, so the first theme.AGENT_TINTS of them
+        each get their own; after that two share a hue and the name still tells them apart."""
         for i, a in enumerate(self.agents):
             if a["id"] == agent_id:
-                return i % theme.AGENT_TINTS
+                chosen = a.get("tint")
+                return chosen if chosen is not None else i % theme.AGENT_TINTS
         return 0
 
     # sidebar ----------------------------------------------------------------
@@ -149,7 +150,9 @@ class MainWindow(Adw.ApplicationWindow):
             avatar = Gtk.Image(icon_name="hivemind-hex-symbolic", pixel_size=AVATAR)
         else:
             avatar = AnimatedBee(self.statuses.get(thread, "idle"), seed=thread, size=AVATAR,
-                                 activity=self.activities.get(thread), last_active=self.last_active.get(thread))
+                                 activity=self.activities.get(thread),
+                                 last_active=self.last_active.get(thread),
+                                 tint=self.tint_of(thread))
             self.bees[thread] = avatar
         box.append(avatar)
         texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True)

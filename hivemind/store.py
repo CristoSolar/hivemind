@@ -7,7 +7,7 @@ SCHEMA = """
 create table if not exists agents(
   id text primary key, name text not null unique collate nocase, role text not null,
   cwd text not null, session_id text, extra_allowed text not null default '[]',
-  brief text not null default '', created_at real not null);
+  brief text not null default '', tint integer, created_at real not null);
 create table if not exists messages(
   id integer primary key, thread text not null, author text not null,
   kind text not null, content text not null, ts real not null);
@@ -51,6 +51,9 @@ class Store:
         if "brief" not in columns:  # databases created before per-agent briefs
             with self.db:
                 self.db.execute("alter table agents add column brief text not null default ''")
+        if "tint" not in columns:  # databases created before agents could pick a colour
+            with self.db:
+                self.db.execute("alter table agents add column tint integer")
         message_columns = {r["name"] for r in self.db.execute("pragma table_info(messages)")}
         if "attachments" not in message_columns:  # databases created before attachments
             with self.db:
@@ -74,17 +77,17 @@ class Store:
         d["extra_allowed"] = json.loads(d["extra_allowed"])
         return d
 
-    def create_agent(self, name, role, cwd, model=None, brief=""):
+    def create_agent(self, name, role, cwd, model=None, brief="", tint=None):
         a = {"id": _new_id(), "name": name, "role": role, "cwd": cwd, "model": model,
-             "session_id": None, "brief": brief, "created_at": time.time()}
+             "session_id": None, "brief": brief, "tint": tint, "created_at": time.time()}
         with self.db:
             self.db.execute(
-                "insert into agents(id, name, role, cwd, model, session_id, brief, created_at)"
-                " values(:id, :name, :role, :cwd, :model, :session_id, :brief, :created_at)", a)
+                "insert into agents(id, name, role, cwd, model, session_id, brief, tint, created_at)"
+                " values(:id, :name, :role, :cwd, :model, :session_id, :brief, :tint, :created_at)", a)
         return self.agent(a["id"])
 
     def update_agent(self, id, **fields):
-        unknown = set(fields) - {"model", "cwd", "session_id", "brief"}
+        unknown = set(fields) - {"model", "cwd", "session_id", "brief", "tint"}
         if unknown:
             raise ValueError(f"Campos desconocidos: {unknown}")
         with self.db:

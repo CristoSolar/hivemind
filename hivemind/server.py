@@ -23,9 +23,10 @@ async def _dispatch(hub, method, p, client=None):
         hub.approve(p["approval"], p["decision"])
         return True
     if method == "create_agent":
-        return hub.create_agent(p["name"], p["role"], p.get("cwd"), p.get("model"), p.get("brief", ""))
+        return hub.create_agent(p["name"], p["role"], p.get("cwd"), p.get("model"), p.get("brief", ""),
+                                p.get("tint"))
     if method == "update_agent":
-        changes = {k: p[k] for k in ("model", "cwd", "brief") if k in p}
+        changes = {k: p[k] for k in ("model", "cwd", "brief", "tint") if k in p}
         return hub.update_agent(p["agent"], **changes)
     if method == "get_settings":
         return hub.settings()
