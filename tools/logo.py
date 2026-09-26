@@ -1,4 +1,4 @@
-"""HiveMind wordmark: the hive icon plus "hivemind" in Sora SemiBold, outlined to SVG paths.
+"""HiveMind wordmark: the hive icon plus "HiveMind" in Sora ("Hive" Bold, "Mind" Regular), outlined to SVG paths.
 
 Dev-only tool (the generated files in docs/brand/ are committed). Needs fontTools and the
 Sora variable font (OFL, https://github.com/google/fonts/tree/main/ofl/sora):
@@ -63,7 +63,7 @@ variants = {
 
 FONT = sys.argv[1] if len(sys.argv) > 1 else "Sora.ttf"
 
-parts = [("hivemind", 600)]
+parts = [("Hive", 700), ("Mind", 400)]  # bold "Hive", regular "Mind"
 out = sys.argv[2] if len(sys.argv) > 2 else "docs/brand"
 __import__("os").makedirs(out, exist_ok=True)
 files = {
