@@ -48,6 +48,10 @@ class Store:
         if "model" not in columns:  # databases created before per-agent models
             with self.db:
                 self.db.execute("alter table agents add column model text")
+        message_columns = {r["name"] for r in self.db.execute("pragma table_info(messages)")}
+        if "attachments" not in message_columns:  # databases created before attachments
+            with self.db:
+                self.db.execute("alter table messages add column attachments text not null default '[]'")
         # Memory used to live on the agent row: it becomes the private chat's session, once.
         # Running this on every start would resurrect memory the user has since cleared.
         if self.get("sessions_migrated") is None:
@@ -103,13 +107,20 @@ class Store:
                 self.db.execute("update agents set extra_allowed = ? where id = ?",
                                 (json.dumps(rules + [rule]), id))
 
-    def add_message(self, thread, author, kind, content):
+    def add_message(self, thread, author, kind, content, attachments=None):
         m = {"thread": thread, "author": author, "kind": kind, "content": content, "ts": time.time()}
         with self.db:
             cur = self.db.execute(
-                "insert into messages(thread, author, kind, content, ts)"
-                " values(:thread, :author, :kind, :content, :ts)", m)
-        return {"id": cur.lastrowid, **m}
+                "insert into messages(thread, author, kind, content, ts, attachments)"
+                " values(:thread, :author, :kind, :content, :ts, :attachments)",
+                {**m, "attachments": json.dumps(attachments or [])})
+        return {"id": cur.lastrowid, **m, "attachments": attachments or []}
+
+    @staticmethod
+    def _message(row):
+        d = dict(row)
+        d["attachments"] = json.loads(d.get("attachments") or "[]")
+        return d
 
     def last_activity(self, agent_id):
         row = self.db.execute("select max(ts) from messages where author = ? or thread = ?",
@@ -120,7 +131,7 @@ class Store:
         rows = self.db.execute(
             "select * from messages where thread = ? and id < ? order by id desc limit ?",
             (thread, before or 2**62, limit)).fetchall()
-        return [dict(r) for r in reversed(rows)]
+        return [self._message(r) for r in reversed(rows)]
 
     def add_approval(self, agent_id, tool, input, rule):
         ap = {"id": _new_id(), "agent_id": agent_id, "tool": tool, "input": json.dumps(input),

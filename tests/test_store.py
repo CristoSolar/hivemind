@@ -174,6 +174,25 @@ class StoreTest(unittest.TestCase):
             self.assertIsNone(s.session(a["id"], a["id"]))
             s.db.close()
 
+    def test_attachments_round_trip(self):
+        files = [{"name": "a.png", "path": "/x/a.png", "kind": "imagen", "size": 3, "transcript": None}]
+        m = self.s.add_message("t", "user", "text", "mira", attachments=files)
+        self.assertEqual(m["attachments"], files)
+        self.assertEqual(self.s.history("t")[0]["attachments"], files)
+        self.assertEqual(self.s.add_message("t", "user", "text", "sin")["attachments"], [])
+
+    def test_attachments_column_is_added_to_old_databases(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory(dir=os.path.expanduser("~/.cache/tmp")) as d:
+            old = sqlite3.connect(d + "/old.db")
+            old.execute("create table messages(id integer primary key, thread text not null, author text not null,"
+                        " kind text not null, content text not null, ts real not null)")
+            old.execute("insert into messages(thread, author, kind, content, ts) values('t', 'user', 'text', 'hola', 1)")
+            old.commit(); old.close()
+            s = Store(d + "/old.db")
+            self.assertEqual(s.history("t")[0]["attachments"], [])
+            s.db.close()
+
 
 if __name__ == "__main__":
     unittest.main()
