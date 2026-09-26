@@ -1,6 +1,11 @@
-# HiveMind
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/hivemind-logo-dark.svg">
+    <img alt="HiveMind" src="docs/brand/hivemind-logo-light.svg" height="80">
+  </picture>
+</p>
 
-**Un equipo de agentes de Claude Code en tu escritorio de Omarchy.**
+<p align="center"><b>Un equipo de agentes de Claude Code en tu escritorio de Omarchy.</b></p>
 
 Cada agente tiene nombre, rol, modelo y proyecto propios. Le hablas por su chat privado o
 reúnes a todos en un chat grupal, donde se pasan trabajo mencionándose con `@Nombre`.
@@ -387,3 +392,6 @@ tests/               unittest (sin dependencias extra)
 ## Licencia
 
 MIT. Ver [`LICENSE`](LICENSE).
+
+El logo usa la fuente [Sora](https://github.com/google/fonts/tree/main/ofl/sora), bajo la licencia
+SIL Open Font License ([`docs/brand/Sora-OFL.txt`](docs/brand/Sora-OFL.txt)).
